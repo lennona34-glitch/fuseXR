@@ -89,6 +89,6 @@ gcc -shared -O2 -o libspectrum-8.dll -Wl,--out-implib,libspectrum/libspectrum.dl
 cp libspectrum/libspectrum.dll.a libspectrum/libspectrum.a
 
 echo "=== Linking fuse.exe ==="
-gcc -O2 -mwindows -o fuse.exe $OBJS libspectrum/libspectrum.a -lws2_32 -lgdi32 -lcomctl32 -lcomdlg32 -lshell32 -lwinmm -lpthread -lz -lm
+gcc -O2 -mwindows -o fuse.exe $OBJS libspectrum/libspectrum.a -lws2_32 -lwininet -lgdi32 -lcomctl32 -lcomdlg32 -lshell32 -lwinmm -lpthread -lz -lm
 ls -lh fuse.exe
 echo "=== Built fuse.exe successfully! ==="

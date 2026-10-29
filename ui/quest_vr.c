@@ -1,4 +1,4 @@
-﻿/* quest_vr.c: Meta Quest VR & Mixed Reality WebXR Broadcast Studio for Fuse
+/* quest_vr.c: Meta Quest VR & Mixed Reality WebXR Broadcast Studio for Fuse
    Copyright (c) 2026 Fuse Emulator Project
 
    This program is free software; you can redistribute it and/or modify
@@ -36,6 +36,7 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <shellapi.h>
+#include <wininet.h>
 #else
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -2686,22 +2687,34 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
 
 #ifdef WIN32
 
-#define IDM_FXR_RANDOM_ANY        40001
-#define IDM_FXR_RANDOM_Z80        40002
-#define IDM_FXR_RANDOM_TAP        40003
-#define IDM_FXR_RANDOM_DSK        40004
-#define IDM_FXR_RANDOM_TRD        40005
-#define IDM_FXR_RANDOM_TZX        40006
-#define IDM_FXR_RANDOM_LOCAL      40007
-#define IDM_FXR_TOSEC_SEARCH_DLG  40008
+#define IDM_FXR_RANDOM_ANY         40001
+#define IDM_FXR_RANDOM_Z80         40002
+#define IDM_FXR_RANDOM_TAP         40003
+#define IDM_FXR_RANDOM_DSK         40004
+#define IDM_FXR_RANDOM_TRD         40005
+#define IDM_FXR_RANDOM_TZX         40006
+#define IDM_FXR_RANDOM_LOCAL       40007
+#define IDM_FXR_TOSEC_SEARCH_DLG   40008
+#define IDM_FXR_DICE_BTN           40009
+#define IDM_FXR_ONLINE_RANDOM_ANY  40010
+#define IDM_FXR_ONLINE_IA_TOSEC    40011
+#define IDM_FXR_ONLINE_IA_LIB      40012
+#define IDM_FXR_ONLINE_VTRDOS      40013
+#define IDM_FXR_ONLINE_FMT_Z80     40014
+#define IDM_FXR_ONLINE_FMT_TAP     40015
+#define IDM_FXR_ONLINE_FMT_DSK     40016
+#define IDM_FXR_ONLINE_FMT_TRD     40017
+#define IDM_FXR_ONLINE_FMT_TZX     40018
+#define IDM_FXR_ONLINE_TOGGLE_DICE 40019
 
-#define IDM_FXR_ARCHIVE_IA_LIB    40020
-#define IDM_FXR_ARCHIVE_IA_WOS    40021
-#define IDM_FXR_ARCHIVE_IA_Z80    40022
-#define IDM_FXR_ARCHIVE_ZXDB      40023
-#define IDM_FXR_ARCHIVE_WOS       40024
-#define IDM_FXR_ARCHIVE_TIPSHOP   40025
-#define IDM_FXR_ARCHIVE_VTRDOS    40026
+#define IDM_FXR_ARCHIVE_IA_LIB     40020
+#define IDM_FXR_ARCHIVE_IA_WOS     40021
+#define IDM_FXR_ARCHIVE_IA_Z80     40022
+#define IDM_FXR_ARCHIVE_ZXDB       40023
+#define IDM_FXR_ARCHIVE_WOS        40024
+#define IDM_FXR_ARCHIVE_TIPSHOP    40025
+#define IDM_FXR_ARCHIVE_VTRDOS     40026
+#define IDM_FXR_OPEN_DOWNLOADS_DIR 40029
 
 #define IDM_FXR_CHEAT_AUTO        40040
 #define IDM_FXR_CHEAT_STUDIO_DLG  40041
@@ -2806,6 +2819,10 @@ static fxr_tosec_entry_t *g_fxr_tosec = NULL;
 static int g_fxr_tosec_count = 0;
 static int g_fxr_tosec_cap = 0;
 static int g_fxr_tosec_indexed = 0;
+static int g_fxr_local_tosec_found = 0;
+static int g_fxr_force_online_dice = 0;
+static HMENU g_fxr_hSubCloud = NULL;
+static HBITMAP g_fxr_dice_bmp = NULL;
 
 static void
 fxr_update_window_title( const char *status_suffix )
@@ -2818,6 +2835,509 @@ fxr_update_window_title( const char *status_suffix )
     snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s", g_fxr_current_game );
   }
   SetWindowTextA( g_fxr_main_hwnd, buf );
+}
+
+/* ============================================================================
+ * 16x16 3D Emerald-Green Casino Die Icon (GDI DIB Section) for Top Menu Bar
+ * ============================================================================ */
+
+static HBITMAP
+fxr_get_dice_bitmap( void )
+{
+  if( g_fxr_dice_bmp ) return g_fxr_dice_bmp;
+
+  BITMAPINFO bmi;
+  void *bits = NULL;
+  HDC hdc = GetDC( NULL );
+  memset( &bmi, 0, sizeof( bmi ) );
+  bmi.bmiHeader.biSize = sizeof( BITMAPINFOHEADER );
+  bmi.bmiHeader.biWidth = 16;
+  bmi.bmiHeader.biHeight = -16; /* top-down */
+  bmi.bmiHeader.biPlanes = 1;
+  bmi.bmiHeader.biBitCount = 32;
+  bmi.bmiHeader.biCompression = BI_RGB;
+
+  g_fxr_dice_bmp = CreateDIBSection( hdc, &bmi, DIB_RGB_COLORS, &bits, NULL, 0 );
+  ReleaseDC( NULL, hdc );
+
+  if( g_fxr_dice_bmp && bits ) {
+    uint32_t *px = (uint32_t *)bits;
+    int x, y;
+    for( y = 0; y < 16; y++ ) {
+      for( x = 0; x < 16; x++ ) {
+        /* Rounded 14x14 die body inside 16x16 canvas */
+        if( x < 1 || x > 14 || y < 1 || y > 14 ) {
+          px[y * 16 + x] = 0x00000000;
+          continue;
+        }
+        if( ( x == 1 || x == 14 ) && ( y == 1 || y == 14 ) ) {
+          px[y * 16 + x] = 0x00000000;
+          continue;
+        }
+        /* Outer dark emerald border */
+        if( x == 1 || x == 14 || y == 1 || y == 14 ||
+            ( ( x == 2 || x == 13 ) && ( y == 2 || y == 13 ) ) ) {
+          px[y * 16 + x] = 0xFF047857;
+          continue;
+        }
+        /* Top/left 3D specular highlight vs bottom/right shadow bevel */
+        if( x == 2 || y == 2 ) {
+          px[y * 16 + x] = 0xFF34D399;
+        } else if( x == 13 || y == 13 ) {
+          px[y * 16 + x] = 0xFF059669;
+        } else {
+          px[y * 16 + x] = 0xFF10B981;
+        }
+      }
+    }
+    /* Draw 5 crisp white 2x2 pips (classic '5' casino die face) */
+    const int pips[5][2] = { { 4, 4 }, { 10, 4 }, { 7, 7 }, { 4, 10 }, { 10, 10 } };
+    int p;
+    for( p = 0; p < 5; p++ ) {
+      int px0 = pips[p][0], py0 = pips[p][1];
+      px[( py0 + 0 ) * 16 + ( px0 + 0 )] = 0xFFFFFFFF;
+      px[( py0 + 0 ) * 16 + ( px0 + 1 )] = 0xFFFFFFFF;
+      px[( py0 + 1 ) * 16 + ( px0 + 0 )] = 0xFFFFFFFF;
+      px[( py0 + 1 ) * 16 + ( px0 + 1 )] = 0xFFFFFFFF;
+    }
+  }
+  return g_fxr_dice_bmp;
+}
+
+/* ============================================================================
+ * WinINet HTTPS Cloud Downloader & Legitimate Online Game File Hosts
+ *   1. Internet Archive TOSEC Cloud (44,528 ZX Spectrum files via HTTP Range)
+ *   2. Internet Archive ZX Spectrum Software Library (12,305 .Z80 Snapshots)
+ *   3. Virtual TR-DOS (https://vtrd.in Pentagon 128 .TRD / .SCL Full Games)
+ * ============================================================================ */
+
+static void
+fxr_ensure_downloads_dir( char *out_dir, size_t cap )
+{
+  if( !g_qvr.initialized ) quest_vr_init();
+  snprintf( out_dir, cap, "%s/games", g_qvr.base_dir );
+  CreateDirectoryA( out_dir, NULL );
+  snprintf( out_dir, cap, "%s/games/downloads", g_qvr.base_dir );
+  CreateDirectoryA( out_dir, NULL );
+}
+
+static void
+fxr_sanitize_filename( const char *in, char *out, size_t cap )
+{
+  size_t i = 0, j = 0;
+  while( in[i] && j + 1 < cap ) {
+    unsigned char c = (unsigned char)in[i++];
+    if( c == '/' || c == '\\' || c == ':' || c == '*' ||
+        c == '?' || c == '"' || c == '<' || c == '>' || c == '|' ) {
+      out[j++] = '_';
+    } else {
+      out[j++] = (char)c;
+    }
+  }
+  out[j] = '\0';
+}
+
+static void
+fxr_url_encode_component( const char *in, char *out, size_t cap )
+{
+  static const char hex[] = "0123456789ABCDEF";
+  size_t i = 0, j = 0;
+  while( in[i] && j + 4 < cap ) {
+    unsigned char c = (unsigned char)in[i++];
+    if( ( c >= 'A' && c <= 'Z' ) || ( c >= 'a' && c <= 'z' ) ||
+        ( c >= '0' && c <= '9' ) || c == '-' || c == '_' || c == '.' || c == '~' ) {
+      out[j++] = (char)c;
+    } else {
+      out[j++] = '%';
+      out[j++] = hex[( c >> 4 ) & 0x0F];
+      out[j++] = hex[c & 0x0F];
+    }
+  }
+  out[j] = '\0';
+}
+
+static int
+fxr_http_get_buffer( const char *url, const char *extra_headers,
+                     char *out_buf, size_t out_cap, size_t *out_len )
+{
+  HINTERNET hNet, hUrl;
+  DWORD timeout_ms = 8000;
+  DWORD status = 0, status_len = sizeof( status );
+  size_t total = 0;
+
+  if( out_len ) *out_len = 0;
+  if( !url || !out_buf || out_cap < 16 ) return 0;
+
+  hNet = InternetOpenA( "FuseXR/1.10.0 (ZX Spectrum Studio)",
+                        INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0 );
+  if( !hNet ) return 0;
+
+  InternetSetOptionA( hNet, INTERNET_OPTION_CONNECT_TIMEOUT, &timeout_ms, sizeof( timeout_ms ) );
+  InternetSetOptionA( hNet, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeout_ms, sizeof( timeout_ms ) );
+
+  hUrl = InternetOpenUrlA(
+    hNet, url, extra_headers, extra_headers ? (DWORD)-1L : 0,
+    INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0 );
+  if( !hUrl ) {
+    InternetCloseHandle( hNet );
+    return 0;
+  }
+
+  if( HttpQueryInfoA( hUrl, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+                      &status, &status_len, NULL ) ) {
+    if( status != 200 && status != 206 ) {
+      InternetCloseHandle( hUrl );
+      InternetCloseHandle( hNet );
+      return 0;
+    }
+  }
+
+  while( total + 1 < out_cap ) {
+    DWORD chunk = (DWORD)( ( out_cap - 1 - total ) > 16384 ? 16384 : ( out_cap - 1 - total ) );
+    DWORD got = 0;
+    if( !InternetReadFile( hUrl, out_buf + total, chunk, &got ) || got == 0 ) break;
+    total += (size_t)got;
+  }
+  out_buf[total] = '\0';
+  if( out_len ) *out_len = total;
+
+  InternetCloseHandle( hUrl );
+  InternetCloseHandle( hNet );
+  return ( total > 0 ) ? 1 : 0;
+}
+
+static int
+fxr_http_download_file( const char *url, const char *dest_path )
+{
+  size_t cap = 2 * 1024 * 1024; /* 2 MB max buffer for ZX Spectrum games */
+  char *buf = (char *)malloc( cap );
+  size_t len = 0;
+  FILE *fp;
+
+  if( !buf ) return 0;
+  if( !fxr_http_get_buffer( url, NULL, buf, cap, &len ) || len < 128 ) {
+    free( buf );
+    return 0;
+  }
+
+  /* Reject HTML error pages */
+  if( !strncasecmp( buf, "<!doctype", 9 ) || !strncasecmp( buf, "<html", 5 ) ) {
+    free( buf );
+    return 0;
+  }
+
+  fp = fopen( dest_path, "wb" );
+  if( !fp ) {
+    free( buf );
+    return 0;
+  }
+  fwrite( buf, 1, len, fp );
+  fclose( fp );
+  free( buf );
+  return 1;
+}
+
+static uint64_t
+fxr_next_rand( void )
+{
+  static uint64_t rng = 0x9e3779b97f4a7c15ULL;
+  rng ^= qvr_now_ms() + (uint64_t)GetTickCount() * 0x517cc1b727220a95ULL;
+  rng ^= rng >> 12;
+  rng ^= rng << 25;
+  rng ^= rng >> 27;
+  return rng * 0x2545f4914f6cdd1dULL;
+}
+
+static void fxr_load_file_direct( const char *full_path, const char *display_name, const char *fmt_hint );
+
+/* Host 1: Internet Archive TOSEC 44,528-file Cloud Archive via HTTP Range Slice */
+static int
+fxr_online_random_ia_tosec( const char *fmt_filter )
+{
+  typedef struct { const char *fmt; long start_b; long end_b; } tosec_range_t;
+  static const tosec_range_t ranges[] = {
+    { "z80", 2132776L, 3275000L },
+    { "tap", 3417433L, 4028000L },
+    { "dsk",  415012L,  526000L },
+    { "trd", 3349987L, 3401000L },
+    { "tzx",  534860L, 2099000L }
+  };
+  int r_idx = 0;
+  uint64_t rv = fxr_next_rand();
+
+  if( fmt_filter && fmt_filter[0] ) {
+    int i;
+    for( i = 0; i < 5; i++ ) {
+      if( !strcasecmp( fmt_filter, ranges[i].fmt ) ) {
+        r_idx = i;
+        break;
+      }
+    }
+  } else {
+    /* Weighted random across instant-boot Z80 (45%), TAP (30%), +3 DSK (15%), Pentagon TRD (10%) */
+    int pick = (int)( rv % 100 );
+    if( pick < 45 )      r_idx = 0; /* z80 */
+    else if( pick < 75 ) r_idx = 1; /* tap */
+    else if( pick < 90 ) r_idx = 2; /* dsk */
+    else                 r_idx = 3; /* trd */
+  }
+
+  long span = ranges[r_idx].end_b - ranges[r_idx].start_b;
+  if( span < 4096 ) span = 4096;
+  long offset = ranges[r_idx].start_b + (long)( ( rv >> 8 ) % (uint64_t)span );
+
+  char range_hdr[128];
+  snprintf( range_hdr, sizeof( range_hdr ), "Range: bytes=%ld-%ld\r\n", offset, offset + 12287L );
+
+  char *slice = (char *)malloc( 16384 );
+  if( !slice ) return 0;
+
+  size_t slice_len = 0;
+  const char *idx_url = "https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.txt";
+  if( !fxr_http_get_buffer( idx_url, range_hdr, slice, 16384, &slice_len ) || slice_len < 64 ) {
+    free( slice );
+    return 0;
+  }
+
+  /* Extract all complete "Sinclair ZX Spectrum [TOSEC]/Games/...zip" paths in this slice */
+  char candidates[64][280];
+  int cand_count = 0;
+  char *line = slice;
+  while( line && *line && cand_count < 64 ) {
+    char *eol = strchr( line, '\n' );
+    if( !eol ) break; /* skip partial trailing line */
+    *eol = '\0';
+    char *p = strstr( line, "Sinclair ZX Spectrum [TOSEC]/Games/[" );
+    char *z = p ? strstr( p, ".zip" ) : NULL;
+    if( p && z ) {
+      z[4] = '\0';
+      snprintf( candidates[cand_count++], sizeof( candidates[0] ), "%s", p );
+    }
+    line = eol + 1;
+  }
+  free( slice );
+
+  if( cand_count <= 0 ) return 0;
+
+  const char *chosen = candidates[(int)( fxr_next_rand() % (uint64_t)cand_count )];
+  const char *slash = strrchr( chosen, '/' );
+  const char *raw_fname = slash ? ( slash + 1 ) : chosen;
+
+  char encoded_inner[1024];
+  fxr_url_encode_component( chosen, encoded_inner, sizeof( encoded_inner ) );
+
+  char dl_url[1400];
+  snprintf( dl_url, sizeof( dl_url ),
+    "https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.zip/%s",
+    encoded_inner );
+
+  char dl_dir[512], clean_fname[256], dest_path[768], title[256];
+  fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+  fxr_sanitize_filename( raw_fname, clean_fname, sizeof( clean_fname ) );
+  snprintf( dest_path, sizeof( dest_path ), "%s/%s", dl_dir, clean_fname );
+
+  snprintf( title, sizeof( title ), "%s", raw_fname );
+  char *zext = strstr( title, ".zip" );
+  if( zext ) *zext = '\0';
+
+  fxr_update_window_title( "Downloading from Internet Archive TOSEC Cloud..." );
+  if( !fxr_http_download_file( dl_url, dest_path ) ) return 0;
+
+  fxr_load_file_direct( dest_path, title, ranges[r_idx].fmt );
+  fxr_update_window_title( "Cloud: IA TOSEC 44k" );
+  return 1;
+}
+
+/* Host 2: Internet Archive 12,305 ZX Spectrum Software Library (.Z80 Snapshots) */
+static int
+fxr_online_random_ia_softlib( void )
+{
+  char search_url[512];
+  char json_buf[8192];
+  size_t json_len = 0;
+  int page = 1 + (int)( fxr_next_rand() % 11500ULL );
+
+  snprintf( search_url, sizeof( search_url ),
+    "https://archive.org/advancedsearch.php?q=collection:softwarelibrary_zx_spectrum&fl[]=identifier,title&rows=1&page=%d&output=json",
+    page );
+
+  fxr_update_window_title( "Querying Internet Archive ZX Spectrum Library..." );
+  if( !fxr_http_get_buffer( search_url, NULL, json_buf, sizeof( json_buf ), &json_len ) )
+    return 0;
+
+  /* Parse "identifier":"..." and "title":"..." */
+  char *id_key = strstr( json_buf, "\"identifier\":\"" );
+  if( !id_key ) return 0;
+  id_key += 14;
+  char *id_end = strchr( id_key, '"' );
+  if( !id_end ) return 0;
+  char identifier[160] = { 0 };
+  size_t id_len = (size_t)( id_end - id_key );
+  if( id_len >= sizeof( identifier ) ) id_len = sizeof( identifier ) - 1;
+  memcpy( identifier, id_key, id_len );
+
+  char title[160] = { 0 };
+  char *t_key = strstr( id_end + 1, "\"title\":\"" );
+  if( t_key ) {
+    t_key += 9;
+    char *t_end = strchr( t_key, '"' );
+    if( t_end ) {
+      size_t t_len = (size_t)( t_end - t_key );
+      if( t_len >= sizeof( title ) ) t_len = sizeof( title ) - 1;
+      memcpy( title, t_key, t_len );
+    }
+  }
+  if( !title[0] ) snprintf( title, sizeof( title ), "%s", identifier );
+
+  /* Query /metadata/<identifier>/files to find the .z80/.sna/.tap/.dsk file */
+  char meta_url[512];
+  snprintf( meta_url, sizeof( meta_url ), "https://archive.org/metadata/%s/files", identifier );
+
+  char *meta_buf = (char *)malloc( 65536 );
+  if( !meta_buf ) return 0;
+  size_t meta_len = 0;
+  if( !fxr_http_get_buffer( meta_url, NULL, meta_buf, 65536, &meta_len ) ) {
+    free( meta_buf );
+    return 0;
+  }
+
+  char file_name[256] = { 0 };
+  char file_fmt[16] = "z80";
+  char *scan = meta_buf;
+  while( ( scan = strstr( scan, "\"name\":\"" ) ) != NULL ) {
+    scan += 8;
+    char *f_end = strchr( scan, '"' );
+    if( !f_end ) break;
+    size_t flen = (size_t)( f_end - scan );
+    if( flen > 4 && flen < sizeof( file_name ) ) {
+      char cand[256];
+      memcpy( cand, scan, flen );
+      cand[flen] = '\0';
+      const char *dot = strrchr( cand, '.' );
+      if( dot && ( !strcasecmp( dot, ".z80" ) || !strcasecmp( dot, ".sna" ) ||
+                   !strcasecmp( dot, ".tap" ) || !strcasecmp( dot, ".dsk" ) ||
+                   !strcasecmp( dot, ".trd" ) || !strcasecmp( dot, ".tzx" ) ) ) {
+        snprintf( file_name, sizeof( file_name ), "%s", cand );
+        snprintf( file_fmt, sizeof( file_fmt ), "%s", dot + 1 );
+        break;
+      }
+    }
+    scan = f_end + 1;
+  }
+  free( meta_buf );
+
+  if( !file_name[0] ) return 0;
+
+  char enc_file[512], dl_url[1024], dl_dir[512], clean_fn[256], dest_path[768];
+  fxr_url_encode_component( file_name, enc_file, sizeof( enc_file ) );
+  snprintf( dl_url, sizeof( dl_url ), "https://archive.org/download/%s/%s", identifier, enc_file );
+
+  fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+  fxr_sanitize_filename( file_name, clean_fn, sizeof( clean_fn ) );
+  snprintf( dest_path, sizeof( dest_path ), "%s/%s", dl_dir, clean_fn );
+
+  fxr_update_window_title( "Downloading from IA ZX Spectrum Library..." );
+  if( !fxr_http_download_file( dl_url, dest_path ) ) return 0;
+
+  fxr_load_file_direct( dest_path, title, file_fmt );
+  fxr_update_window_title( "Cloud: IA Software Library" );
+  return 1;
+}
+
+/* Host 3: Virtual TR-DOS (https://vtrd.in) Pentagon 128 Full Disk Games */
+static int
+fxr_online_random_vtrdos( void )
+{
+  static const char letters[] = "1abcdefghijklmnopqrstuvwxyz";
+  char letter = letters[(int)( fxr_next_rand() % ( sizeof( letters ) - 1 ) )];
+  char list_url[256];
+  snprintf( list_url, sizeof( list_url ), "https://vtrd.in/games.php?t=full_ver&l=%c", letter );
+
+  char *html = (char *)malloc( 131072 );
+  if( !html ) return 0;
+  size_t html_len = 0;
+
+  fxr_update_window_title( "Querying Virtual TR-DOS Archive (vtrd.in)..." );
+  if( !fxr_http_get_buffer( list_url, NULL, html, 131072, &html_len ) || html_len < 128 ) {
+    free( html );
+    return 0;
+  }
+
+  char links[128][128];
+  int link_count = 0;
+  char *p = html;
+  while( ( p = strstr( p, "href=\"/full_ver/" ) ) != NULL && link_count < 128 ) {
+    p += 16; /* skip href="/full_ver/ */
+    char *q = strchr( p, '"' );
+    if( !q ) break;
+    size_t len = (size_t)( q - p );
+    if( len > 4 && len < sizeof( links[0] ) ) {
+      memcpy( links[link_count], p, len );
+      links[link_count][len] = '\0';
+      if( strstr( links[link_count], ".zip" ) || strstr( links[link_count], ".ZIP" ) ) {
+        link_count++;
+      }
+    }
+    p = q + 1;
+  }
+  free( html );
+
+  if( link_count <= 0 ) return 0;
+
+  const char *chosen = links[(int)( fxr_next_rand() % (uint64_t)link_count )];
+  char dl_url[512], dl_dir[512], clean_fn[256], dest_path[768];
+  snprintf( dl_url, sizeof( dl_url ), "https://vtrd.in/full_ver/%s", chosen );
+
+  fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+  fxr_sanitize_filename( chosen, clean_fn, sizeof( clean_fn ) );
+  snprintf( dest_path, sizeof( dest_path ), "%s/%s", dl_dir, clean_fn );
+
+  fxr_update_window_title( "Downloading TR-DOS Disk from vtrd.in..." );
+  if( !fxr_http_download_file( dl_url, dest_path ) ) return 0;
+
+  fxr_load_file_direct( dest_path, chosen, "trd" );
+  fxr_update_window_title( "Cloud: Virtual TR-DOS" );
+  return 1;
+}
+
+static int
+fxr_download_random_online_game( const char *host_or_fmt )
+{
+  HCURSOR hOldCur = SetCursor( LoadCursor( NULL, IDC_WAIT ) );
+  int ok = 0;
+
+  if( host_or_fmt && !strcasecmp( host_or_fmt, "ia_tosec" ) ) {
+    ok = fxr_online_random_ia_tosec( NULL );
+  } else if( host_or_fmt && !strcasecmp( host_or_fmt, "ia_lib" ) ) {
+    ok = fxr_online_random_ia_softlib();
+  } else if( host_or_fmt && !strcasecmp( host_or_fmt, "vtrdos" ) ) {
+    ok = fxr_online_random_vtrdos();
+  } else if( host_or_fmt && host_or_fmt[0] ) {
+    /* Specific format ("z80", "tap", "dsk", "trd", "tzx") */
+    ok = fxr_online_random_ia_tosec( host_or_fmt );
+    if( !ok && !strcasecmp( host_or_fmt, "trd" ) ) ok = fxr_online_random_vtrdos();
+    if( !ok ) ok = fxr_online_random_ia_softlib();
+  } else {
+    /* Rotate across all 3 legitimate online hosts with automatic fallback */
+    int pick = (int)( fxr_next_rand() % 100 );
+    if( pick < 55 ) {
+      ok = fxr_online_random_ia_tosec( NULL );
+      if( !ok ) ok = fxr_online_random_ia_softlib();
+      if( !ok ) ok = fxr_online_random_vtrdos();
+    } else if( pick < 85 ) {
+      ok = fxr_online_random_ia_softlib();
+      if( !ok ) ok = fxr_online_random_ia_tosec( NULL );
+    } else {
+      ok = fxr_online_random_vtrdos();
+      if( !ok ) ok = fxr_online_random_ia_tosec( NULL );
+    }
+  }
+
+  SetCursor( hOldCur );
+  if( !ok ) {
+    fxr_update_window_title( "Online Download Failed - Check Connection" );
+  }
+  return ok;
 }
 
 static void
@@ -2857,13 +3377,107 @@ fxr_build_tosec_index( void )
     } while( FindNextFileA( hFind, &fd ) );
     FindClose( hFind );
   }
+
+  if( g_fxr_tosec_count > 0 ) {
+    g_fxr_local_tosec_found = 1;
+    return;
+  }
+
+  /* No local TOSEC folder installed! Automatically fetch & index the Cloud TOSEC catalog from Internet Archive */
+  g_fxr_local_tosec_found = 0;
+  {
+    char dl_dir[512], cloud_idx_path[768];
+    fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+    snprintf( cloud_idx_path, sizeof( cloud_idx_path ), "%s/tosec_cloud_index.txt", dl_dir );
+
+    FILE *fp = fopen( cloud_idx_path, "rb" );
+    if( !fp ) {
+      HCURSOR hOld = SetCursor( LoadCursor( NULL, IDC_WAIT ) );
+      fxr_update_window_title( "Downloading Cloud TOSEC 29k Catalog from Internet Archive..." );
+      size_t cap = 6 * 1024 * 1024;
+      char *buf = (char *)malloc( cap );
+      size_t len = 0;
+      if( buf && fxr_http_get_buffer(
+            "https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.txt",
+            NULL, buf, cap, &len ) && len > 100000 ) {
+        fp = fopen( cloud_idx_path, "wb" );
+        if( fp ) {
+          fwrite( buf, 1, len, fp );
+          fclose( fp );
+        }
+      }
+      if( buf ) free( buf );
+      SetCursor( hOld );
+      fp = fopen( cloud_idx_path, "rb" );
+    }
+
+    if( fp ) {
+      char line[512];
+      while( fgets( line, sizeof( line ), fp ) && g_fxr_tosec_count < g_fxr_tosec_cap ) {
+        char *p = strstr( line, "Sinclair ZX Spectrum [TOSEC]/Games/[" );
+        if( !p ) continue;
+        char *z = strstr( p, ".zip" );
+        if( !z ) continue;
+        z[4] = '\0';
+
+        const char *fmt = NULL;
+        if( strstr( p, "/Games/[Z80]/" ) )      fmt = "z80";
+        else if( strstr( p, "/Games/[TAP]/" ) ) fmt = "tap";
+        else if( strstr( p, "/Games/[DSK]/" ) ) fmt = "dsk";
+        else if( strstr( p, "/Games/[TRD]/" ) ) fmt = "trd";
+        else if( strstr( p, "/Games/[TZX]/" ) ) fmt = "tzx";
+        if( !fmt ) continue;
+
+        const char *slash = strrchr( p, '/' );
+        if( !slash || !slash[1] ) continue;
+
+        fxr_tosec_entry_t *e = &g_fxr_tosec[g_fxr_tosec_count++];
+        snprintf( e->title, sizeof( e->title ), "%s", slash + 1 );
+        char *ext = strstr( e->title, ".zip" );
+        if( ext ) *ext = '\0';
+        snprintf( e->full_path, sizeof( e->full_path ), "cloud://%s", p );
+        snprintf( e->fmt, sizeof( e->fmt ), "%s", fmt );
+      }
+      fclose( fp );
+    }
+  }
 }
 
 static void
 fxr_load_file_direct( const char *full_path, const char *display_name, const char *fmt_hint )
 {
+  char resolved_path[768];
   if( !full_path || !full_path[0] ) return;
   if( !g_qvr.initialized ) quest_vr_init();
+
+  /* If this entry is a Cloud TOSEC path ("cloud://Sinclair ZX Spectrum [TOSEC]/..."), download on demand! */
+  if( strncmp( full_path, "cloud://", 8 ) == 0 ) {
+    const char *inner = full_path + 8;
+    const char *slash = strrchr( inner, '/' );
+    const char *raw_fn = slash ? ( slash + 1 ) : inner;
+    char enc_inner[1024], dl_url[1400], dl_dir[512], clean_fn[256];
+
+    fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+    fxr_sanitize_filename( raw_fn, clean_fn, sizeof( clean_fn ) );
+    snprintf( resolved_path, sizeof( resolved_path ), "%s/%s", dl_dir, clean_fn );
+
+    /* Download from Internet Archive if not already cached in games/downloads/ */
+    if( GetFileAttributesA( resolved_path ) == INVALID_FILE_ATTRIBUTES ) {
+      HCURSOR hOld = SetCursor( LoadCursor( NULL, IDC_WAIT ) );
+      fxr_url_encode_component( inner, enc_inner, sizeof( enc_inner ) );
+      snprintf( dl_url, sizeof( dl_url ),
+        "https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.zip/%s",
+        enc_inner );
+      fxr_update_window_title( "Downloading Game from Internet Archive Cloud..." );
+      int ok = fxr_http_download_file( dl_url, resolved_path );
+      SetCursor( hOld );
+      if( !ok ) {
+        fxr_update_window_title( "Cloud Download Failed" );
+        return;
+      }
+    }
+    full_path = resolved_path;
+  }
 
   settings_current.joy_prompt = 0;
   settings_current.confirm_actions = 0;
@@ -2872,13 +3486,16 @@ fxr_load_file_direct( const char *full_path, const char *display_name, const cha
   settings_current.fastload = 1;
   settings_current.accelerate_loader = 1;
 
-  /* For TAP/TZX files, select 48K unless [128K] is in the title so 48K loaders never conflict with 128K RAM paging */
   if( fmt_hint && ( !strcasecmp( fmt_hint, "tap" ) || !strcasecmp( fmt_hint, "tzx" ) ) ) {
     if( display_name && ( strstr( display_name, "128" ) || strstr( display_name, "+2" ) || strstr( display_name, "+3" ) ) ) {
       machine_select_id( "128" );
     } else {
       machine_select_id( "48" );
     }
+  } else if( fmt_hint && !strcasecmp( fmt_hint, "dsk" ) ) {
+    machine_select_id( "plus3" );
+  } else if( fmt_hint && ( !strcasecmp( fmt_hint, "trd" ) || !strcasecmp( fmt_hint, "scl" ) ) ) {
+    machine_select_id( "pentagon" );
   }
 
   utils_open_file( full_path, 1, NULL );
@@ -2893,15 +3510,21 @@ fxr_load_file_direct( const char *full_path, const char *display_name, const cha
 static void
 fxr_load_random_game( const char *fmt_filter, int local_only )
 {
-  static uint64_t rng = 0x9e3779b97f4a7c15ULL;
-  rng ^= qvr_now_ms() + 0x517cc1b727220a95ULL;
-  rng ^= rng >> 12;
-  rng ^= rng << 25;
-  rng ^= rng >> 27;
-  uint64_t rval = rng * 0x2545f4914f6cdd1dULL;
+  uint64_t rval = fxr_next_rand();
 
   if( !local_only ) {
+    /* Check if local TOSEC folder exists without triggering a 5MB index download first */
+    const char *tosec_root = "C:/Users/adria/Desktop/DEV FOLDER/_=[ 07_3MU_R37R0 ]=_/Sinclair ZX Spectrum [TOSEC]/Games";
+    if( !g_fxr_tosec_indexed && GetFileAttributesA( tosec_root ) == INVALID_FILE_ATTRIBUTES ) {
+      /* User doesn't have local TOSEC configured! Use fast 1-click Online Random Game Download! */
+      if( fxr_download_random_online_game( fmt_filter ) ) return;
+    }
+
     fxr_build_tosec_index();
+    if( !g_fxr_local_tosec_found ) {
+      if( fxr_download_random_online_game( fmt_filter ) ) return;
+    }
+
     if( g_fxr_tosec && g_fxr_tosec_count > 0 ) {
       int tries;
       for( tries = 0; tries < 500; tries++ ) {
@@ -3045,6 +3668,7 @@ static int g_tosec_dlg_map_count = 0;
 #define IDC_TOSEC_BTN_TZX 5009
 #define IDC_TOSEC_LIST    5010
 #define IDC_TOSEC_LOAD    5011
+#define IDC_TOSEC_CLOUD   5012
 
 static void
 fxr_refresh_tosec_listbox( void )
@@ -3093,10 +3717,12 @@ fxr_refresh_tosec_listbox( void )
   }
 
   if( g_hwnd_tosec_status ) {
-    char st[160];
+    char st[180];
     snprintf( st, sizeof( st ),
-      "Showing %d of %d matching games (Total Indexed: %d games). Double-click any game to play!",
-      g_tosec_dlg_map_count, total_matched, g_fxr_tosec_count );
+      "Showing %d of %d matching games (%s Catalog: %d games). Double-click any game to play!",
+      g_tosec_dlg_map_count, total_matched,
+      g_fxr_local_tosec_found ? "Local TOSEC" : "Internet Archive Cloud",
+      g_fxr_tosec_count );
     SetWindowTextA( g_hwnd_tosec_status, st );
   }
 }
@@ -3132,6 +3758,10 @@ fxr_tosec_wnd_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
     }
     if( id == IDC_TOSEC_BTN_RND ) {
       fxr_load_random_game( g_tosec_dlg_fmt, 0 );
+      return 0;
+    }
+    if( id == IDC_TOSEC_CLOUD ) {
+      fxr_download_random_online_game( g_tosec_dlg_fmt[0] ? g_tosec_dlg_fmt : NULL );
       return 0;
     }
     if( id == IDC_TOSEC_BTN_ALL ) { g_tosec_dlg_fmt[0] = '\0'; fxr_refresh_tosec_listbox(); return 0; }
@@ -3183,7 +3813,7 @@ fxr_open_tosec_search_dialog( HWND hParent )
 
   g_hwnd_tosec_dlg = CreateWindowExA(
     0, "FuseXR_TOSEC_Dlg",
-    "FuseXR - Search 29,000+ ZX Spectrum TOSEC Archive & Classics",
+    "FuseXR - Search 29,000+ ZX Spectrum TOSEC Archive & Online Cloud",
     WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
     CW_USEDEFAULT, CW_USEDEFAULT, 660, 500,
     hParent, NULL, GetModuleHandleA( NULL ), NULL );
@@ -3196,16 +3826,20 @@ fxr_open_tosec_search_dialog( HWND hParent )
 
   g_hwnd_tosec_edit = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "",
     WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
-    125, 13, 290, 24, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_EDIT, NULL, NULL );
+    125, 13, 210, 24, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_EDIT, NULL, NULL );
   SendMessageA( g_hwnd_tosec_edit, WM_SETFONT, (WPARAM)hFont, TRUE );
 
   HWND hBtnGo = CreateWindowA( "BUTTON", "Search", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-    422, 12, 85, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_BTN_GO, NULL, NULL );
+    341, 12, 70, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_BTN_GO, NULL, NULL );
   SendMessageA( hBtnGo, WM_SETFONT, (WPARAM)hFont, TRUE );
 
-  HWND hBtnRnd = CreateWindowA( "BUTTON", "Random Game", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-    515, 12, 120, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_BTN_RND, NULL, NULL );
+  HWND hBtnRnd = CreateWindowA( "BUTTON", "Random Local", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    417, 12, 102, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_BTN_RND, NULL, NULL );
   SendMessageA( hBtnRnd, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnCloud = CreateWindowA( "BUTTON", "Cloud Random", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    525, 12, 110, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_CLOUD, NULL, NULL );
+  SendMessageA( hBtnCloud, WM_SETFONT, (WPARAM)hFont, TRUE );
 
   /* Format filter buttons */
   struct { int id; const char *txt; int x; int w; } fb[] = {
@@ -3586,10 +4220,12 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   /* 1. Build "Games & Archives" Menu */
   HMENU hMenuGames = CreatePopupMenu();
   HMENU hSubRndFmt = CreatePopupMenu();
+  HMENU hSubCloud  = CreatePopupMenu();
   HMENU hSubSnap   = CreatePopupMenu();
   HMENU hSubTape   = CreatePopupMenu();
   HMENU hSubDisk   = CreatePopupMenu();
   HMENU hSubArch   = CreatePopupMenu();
+  g_fxr_hSubCloud  = hSubCloud;
 
   AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_Z80,   "Random .&Z80 Snapshot (Instant)" );
   AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TAP,   "Random .&TAP Cassette Tape" );
@@ -3598,6 +4234,20 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TZX,   "Random .T&ZX Turbo Tape" );
   AppendMenuA( hSubRndFmt, MF_SEPARATOR, 0, NULL );
   AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_LOCAL, "Random &Bundled Classic Game" );
+
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_IA_TOSEC,    "Internet Archive - &TOSEC 44,528-Game Cloud (All Formats)" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_IA_LIB,      "Internet Archive - &ZX Spectrum Software Library (12,305 .Z80s)" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_VTRDOS,      "&Virtual TR-DOS - Pentagon 128 Full Disks (vtrd.in .TRD)" );
+  AppendMenuA( hSubCloud, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_Z80,     "Cloud Download: Random .&Z80 Snapshot" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_TAP,     "Cloud Download: Random .&TAP Cassette Tape" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_DSK,     "Cloud Download: Random +3 .&DSK Floppy Disk" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_TRD,     "Cloud Download: Random Pentagon .T&RD Disk" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_TZX,     "Cloud Download: Random .TZX T&urbo Tape" );
+  AppendMenuA( hSubCloud, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubCloud, MF_STRING | ( g_fxr_force_online_dice ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_ONLINE_TOGGLE_DICE, "Top-Bar Dice Button: Always Use &Online Cloud Downloads" );
+  AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_OPEN_DOWNLOADS_DIR, "&Open Downloaded Games Folder (games/downloads)..." );
 
   /* Scan bundled games/ folder */
   g_fxr_local_game_count = 0;
@@ -3643,15 +4293,17 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_TIPSHOP, "The &Tipshop (.POK Trainers && Cheats)" );
   AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_VTRDOS,  "&Virtual TR-DOS (.TRD / .SCL Disks)" );
 
-  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_RANDOM_ANY,       "Load &Random Game (TOSEC 29k)\tF11" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubRndFmt,     "Random Game by &Format" );
-  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_TOSEC_SEARCH_DLG, "&Search TOSEC 29,000+ Archive..." );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_RANDOM_ANY,        "Load &Random Game (Local / Auto-Cloud)\tF11" );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_ONLINE_RANDOM_ANY, "&Download Random Online Game (Live Cloud)\tShift+F11" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubCloud,       "Online Random by &Host / Format (No TOSEC Needed)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubRndFmt,      "Random Game by &Format" );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_TOSEC_SEARCH_DLG,  "&Search TOSEC 29,000+ Archive..." );
   AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubSnap,       "Featured &Snapshots (.Z80)" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubTape,       "Featured &Tapes (.TAP / .TZX)" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDisk,       "Featured &Disks (+3 .DSK && TR-DOS .TRD)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubSnap,        "Featured &Snapshots (.Z80)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubTape,        "Featured &Tapes (.TAP / .TZX)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDisk,        "Featured &Disks (+3 .DSK && TR-DOS .TRD)" );
   AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubArch,       "Legitimate &Online Game Archives" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubArch,        "Legitimate &Online Game Archives" );
 
   /* 2. Build "Easy Cheat" Menu */
   HMENU hMenuCheat = CreatePopupMenu();
@@ -3737,6 +4389,19 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuQuick, "&Quick Setup" );
   InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuVR,    "Quest &VR" );
 
+  /* Add the 1-Click 3D Emerald Dice Button ("Random") right-aligned at the far right of the top menu bar */
+  {
+    MENUITEMINFOA mii;
+    memset( &mii, 0, sizeof( mii ) );
+    mii.cbSize = sizeof( mii );
+    mii.fMask = MIIM_ID | MIIM_FTYPE | MIIM_STRING | MIIM_BITMAP;
+    mii.fType = MFT_STRING | MFT_RIGHTJUSTIFY;
+    mii.wID = IDM_FXR_DICE_BTN;
+    mii.dwTypeData = (LPSTR)"Random";
+    mii.hbmpItem = fxr_get_dice_bitmap();
+    InsertMenuItemA( hBar, GetMenuItemCount( hBar ), TRUE, &mii );
+  }
+
   DrawMenuBar( hWnd );
   fxr_update_window_title( NULL );
 #else
@@ -3770,13 +4435,46 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   }
 
   switch( cmd_id ) {
-  case IDM_FXR_RANDOM_ANY:   fxr_load_random_game( NULL,  0 ); return 1;
+  case IDM_FXR_DICE_BTN:
+  case IDM_FXR_RANDOM_ANY:
+    if( g_fxr_force_online_dice || ( GetKeyState( VK_SHIFT ) & 0x8000 ) ) {
+      fxr_download_random_online_game( NULL );
+    } else {
+      fxr_load_random_game( NULL, 0 );
+    }
+    return 1;
   case IDM_FXR_RANDOM_Z80:   fxr_load_random_game( "z80", 0 ); return 1;
   case IDM_FXR_RANDOM_TAP:   fxr_load_random_game( "tap", 0 ); return 1;
   case IDM_FXR_RANDOM_DSK:   fxr_load_random_game( "dsk", 0 ); return 1;
   case IDM_FXR_RANDOM_TRD:   fxr_load_random_game( "trd", 0 ); return 1;
   case IDM_FXR_RANDOM_TZX:   fxr_load_random_game( "tzx", 0 ); return 1;
   case IDM_FXR_RANDOM_LOCAL: fxr_load_random_game( NULL,  1 ); return 1;
+
+  case IDM_FXR_ONLINE_RANDOM_ANY: fxr_download_random_online_game( NULL );       return 1;
+  case IDM_FXR_ONLINE_IA_TOSEC:   fxr_download_random_online_game( "ia_tosec" ); return 1;
+  case IDM_FXR_ONLINE_IA_LIB:     fxr_download_random_online_game( "ia_lib" );   return 1;
+  case IDM_FXR_ONLINE_VTRDOS:     fxr_download_random_online_game( "vtrdos" );   return 1;
+  case IDM_FXR_ONLINE_FMT_Z80:    fxr_download_random_online_game( "z80" );      return 1;
+  case IDM_FXR_ONLINE_FMT_TAP:    fxr_download_random_online_game( "tap" );      return 1;
+  case IDM_FXR_ONLINE_FMT_DSK:    fxr_download_random_online_game( "dsk" );      return 1;
+  case IDM_FXR_ONLINE_FMT_TRD:    fxr_download_random_online_game( "trd" );      return 1;
+  case IDM_FXR_ONLINE_FMT_TZX:    fxr_download_random_online_game( "tzx" );      return 1;
+
+  case IDM_FXR_ONLINE_TOGGLE_DICE:
+    g_fxr_force_online_dice = !g_fxr_force_online_dice;
+    if( g_fxr_hSubCloud ) {
+      CheckMenuItem( g_fxr_hSubCloud, IDM_FXR_ONLINE_TOGGLE_DICE,
+                     MF_BYCOMMAND | ( g_fxr_force_online_dice ? MF_CHECKED : MF_UNCHECKED ) );
+    }
+    fxr_update_window_title( g_fxr_force_online_dice ? "Dice Button: Online Cloud Mode" : "Dice Button: Auto/Local Mode" );
+    return 1;
+
+  case IDM_FXR_OPEN_DOWNLOADS_DIR: {
+    char dl_dir[512];
+    fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+    ShellExecuteA( NULL, "open", dl_dir, NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  }
 
   case IDM_FXR_TOSEC_SEARCH_DLG:
     fxr_open_tosec_search_dialog( hWnd );

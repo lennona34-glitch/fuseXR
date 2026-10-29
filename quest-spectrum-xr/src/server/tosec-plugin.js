@@ -226,10 +226,11 @@ export function tosecServerPlugin() {
           }));
         }
 
-        // 3. Random game endpoint: /api/tosec/random?cat=...
+        // 3. Random game endpoint: /api/tosec/random?cat=...&online=1
         if (url.pathname === '/api/tosec/random') {
           buildIndex();
           const cat = (url.searchParams.get('cat') || 'all').toLowerCase();
+          const forceOnline = url.searchParams.get('online') === '1';
           let pool = gameIndex;
           if (cat && cat !== 'all') {
             pool = pool.filter(g => g.format === cat);
@@ -238,10 +239,56 @@ export function tosecServerPlugin() {
             pool = pool.filter(g => g.format !== 'tzx');
           }
           if (pool.length === 0) pool = gameIndex;
-          if (pool.length === 0) {
-            res.setHeader('Content-Type', 'application/json');
-            return res.end(JSON.stringify({ error: 'empty' }));
+
+          // If local TOSEC is not installed (or online=1 requested), pick a random game from Internet Archive TOSEC 44k Cloud!
+          if (pool.length === 0 || forceOnline) {
+            (async () => {
+              try {
+                const ranges = {
+                  z80: [2132776, 3275000],
+                  tap: [3417433, 4028000],
+                  dsk: [415012,  526000],
+                  trd: [3349987, 3401000],
+                  tzx: [534860,  2099000]
+                };
+                const fmts = ['z80', 'tap', 'dsk', 'trd'];
+                const chosenFmt = (cat && ranges[cat]) ? cat : fmts[Math.floor(Math.random() * fmts.length)];
+                const [startB, endB] = ranges[chosenFmt];
+                const offset = startB + Math.floor(Math.random() * Math.max(4096, endB - startB));
+                const idxUrl = 'https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.txt';
+                const r = await fetch(idxUrl, { headers: { Range: `bytes=${offset}-${offset + 12287}` } });
+                const slice = await r.text();
+                const lines = slice.split('\n')
+                  .map(l => {
+                    const m = l.match(/(Sinclair ZX Spectrum \[TOSEC\]\/Games\/\[[^\]]+\]\/[^\r\n]+\.zip)/);
+                    return m ? m[1] : null;
+                  })
+                  .filter(Boolean);
+                if (lines.length > 0) {
+                  const chosen = lines[Math.floor(Math.random() * lines.length)];
+                  const rawFile = chosen.split('/').pop();
+                  const title = rawFile.replace(/\.zip$/i, '');
+                  const cloudGame = {
+                    name: title,
+                    file: rawFile,
+                    category: `[${chosenFmt.toUpperCase()}]`,
+                    format: chosenFmt,
+                    relPath: `cloud://${chosen}`,
+                    is128K: title.includes('[128K]') || title.includes('+3'),
+                    cloud: true
+                  };
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ game: cloudGame, ...cloudGame }));
+                }
+              } catch (e) {
+                console.warn('[TOSEC Cloud] Online random fallback error:', e.message);
+              }
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'empty' }));
+            })();
+            return;
           }
+
           let idx = Math.floor(Math.random() * pool.length);
           if (pool.length > 1 && idx === lastRandomIdx) {
             idx = (idx + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
@@ -285,6 +332,40 @@ export function tosecServerPlugin() {
           if (!relFile) {
             res.statusCode = 400;
             return res.end('Missing file parameter');
+          }
+
+          if (relFile.startsWith('cloud://')) {
+            const innerPath = relFile.slice(8);
+            const dlUrl = `https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.zip/${encodeURIComponent(innerPath)}`;
+            (async () => {
+              try {
+                const r = await fetch(dlUrl);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const rawBytes = Buffer.from(await r.arrayBuffer());
+                let filename = path.basename(innerPath);
+                let fileData = rawBytes;
+                if (rawBytes.length >= 4 && rawBytes[0] === 0x50 && rawBytes[1] === 0x4b) {
+                  const extracted = unzipFirstEntry(rawBytes);
+                  if (extracted) {
+                    filename = extracted.name;
+                    fileData = extracted.data;
+                  }
+                }
+                const ext = filename.split('.').pop().toLowerCase();
+                syncBufferToFuse(fileData, ext);
+                res.setHeader('Content-Type', 'application/octet-stream');
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+                res.setHeader('X-Extracted-Name', filename);
+                res.setHeader('X-Extracted-Format', ext);
+                res.setHeader('Access-Control-Expose-Headers', 'X-Extracted-Name, X-Extracted-Format');
+                return res.end(fileData);
+              } catch (err) {
+                console.error('[TOSEC Cloud] Error downloading file:', err.message);
+                res.statusCode = 502;
+                return res.end(`Cloud download failed: ${err.message}`);
+              }
+            })();
+            return;
           }
 
           // Security check: prevent directory traversal

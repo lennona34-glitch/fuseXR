@@ -38,5 +38,6 @@ tags
 /z80/tests.actual
 /games/_live_game.*
 /games/_uploaded_*
+/games/downloads/
 /quest-spectrum-xr/node_modules/
 /quest-spectrum-xr/dist/
