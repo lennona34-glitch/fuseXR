@@ -1,4 +1,4 @@
-/* quest_vr.c: Meta Quest VR & Mixed Reality WebXR Broadcast Studio for Fuse
+﻿/* quest_vr.c: Meta Quest VR & Mixed Reality WebXR Broadcast Studio for Fuse
    Copyright (c) 2026 Fuse Emulator Project
 
    This program is free software; you can redistribute it and/or modify
@@ -34,6 +34,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <commdlg.h>
 #include <shellapi.h>
 #else
 #include <arpa/inet.h>
@@ -53,6 +54,7 @@
 #include "keyboard.h"
 #include "machine.h"
 #include "memory_pages.h"
+#include "menu.h"
 #include "peripherals/joystick.h"
 #include "pokefinder/pokefinder.h"
 #include "pokefinder/pokemem.h"
@@ -530,7 +532,7 @@ static const char quest_vr_studio_html[] =
 "<head>\n"
 "<meta charset='utf-8'>\n"
 "<meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'>\n"
-"<title>ZX Spectrum XR — Meta Quest 3 Mixed Reality &amp; Fuse Broadcast Studio</title>\n"
+"<title>ZX Spectrum XR â€” Meta Quest 3 Mixed Reality &amp; Fuse Broadcast Studio</title>\n"
 "<style>\n"
 "*{box-sizing:border-box;margin:0;padding:0;user-select:none}\n"
 "html,body{width:100%;height:100%;background:#0a0b10;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}\n"
@@ -564,41 +566,41 @@ static const char quest_vr_studio_html[] =
 "    <div class='row'>\n"
 "      <select id='selMachine'><option value='Spectrum128K'>ZX Spectrum 128K (Toastrack)</option><option value='Spectrum48K'>ZX Spectrum 48K</option><option value='SpectrumPlus2'>ZX Spectrum +2</option><option value='SpectrumPlus3'>ZX Spectrum +3</option><option value='Pentagon128'>Pentagon 128K</option></select>\n"
 "      <span class='badge-128' id='machBadge'>128K PAL</span>\n"
-"      <button class='btn-random' id='btnRandom'>🎲 Random</button>\n"
-"      <button class='btn-cheat' id='btnCheats'>🧬 Easy Cheat</button>\n"
-"      <button class='btn-arch' id='btnArchives'>📚 Archives (29k)</button>\n"
+"      <button class='btn-random' id='btnRandom'>ðŸŽ² Random</button>\n"
+"      <button class='btn-cheat' id='btnCheats'>ðŸ§¬ Easy Cheat</button>\n"
+"      <button class='btn-arch' id='btnArchives'>ðŸ“š Archives (29k)</button>\n"
 "    </div>\n"
 "  </div>\n"
 "  <div id='stage'><div id='bezel'><img id='streamImg' src='/stream.mjpg' alt='ZX Spectrum Stream'></div></div>\n"
 "  <div class='bar'>\n"
 "    <div class='row'>\n"
-"      <span>🎮 Game: <b id='lblGame' style='color:#38bdf8'>Fuse Live Core</b></span>\n"
+"      <span>ðŸŽ® Game: <b id='lblGame' style='color:#38bdf8'>Fuse Live Core</b></span>\n"
 "      <button onclick=\"fetch('/api/control?action=tape_play')\">Play/Stop Tape</button>\n"
 "      <button onclick=\"fetch('/api/control?action=tape_rewind')\">Rewind</button>\n"
 "      <button onclick=\"fetch('/input?key=load&action=tap')\">LOAD &quot;&quot;</button>\n"
 "    </div>\n"
 "    <div class='row'>\n"
 "      <span id='lblFps' class='badge-128'>50 FPS</span>\n"
-"      <button class='btn-reset' onclick=\"fetch('/api/control?action=reset')\">⚡ Reset Speccy</button>\n"
+"      <button class='btn-reset' onclick=\"fetch('/api/control?action=reset')\">âš¡ Reset Speccy</button>\n"
 "    </div>\n"
 "  </div>\n"
 "</div>\n"
 "<div class='modal' id='cheatModal'>\n"
 "  <div class='card'>\n"
-"    <div class='card-hdr'><span>🧬 Fuse Easy Cheat &amp; Pokefinder Studio</span><button onclick=\"document.getElementById('cheatModal').classList.remove('open')\">✕</button></div>\n"
+"    <div class='card-hdr'><span>ðŸ§¬ Fuse Easy Cheat &amp; Pokefinder Studio</span><button onclick=\"document.getElementById('cheatModal').classList.remove('open')\">âœ•</button></div>\n"
 "    <div class='card-body'>\n"
 "      <div class='row'>\n"
 "        <input id='pokeAddr' placeholder='Address (16384-65535)' style='width:180px'>\n"
 "        <input id='pokeVal' placeholder='Value (0-255)' style='width:130px'>\n"
-"        <button class='btn-random' onclick='applyPoke()'>⚡ Apply POKE</button>\n"
-"        <button onclick='clearCheats()'>↩️ Restore All RAM</button>\n"
+"        <button class='btn-random' onclick='applyPoke()'>âš¡ Apply POKE</button>\n"
+"        <button onclick='clearCheats()'>â†©ï¸ Restore All RAM</button>\n"
 "      </div>\n"
 "      <div class='row'>\n"
 "        <input id='pfVal' placeholder='Exact Lives / Value' style='width:160px'>\n"
-"        <button onclick=\"pfAct('pf_search')\">🔍 Search Value</button>\n"
-"        <button onclick=\"pfAct('pf_dec')\">📉 Decreased (-1)</button>\n"
-"        <button onclick=\"pfAct('pf_inc')\">📈 Increased (+1)</button>\n"
-"        <button onclick=\"pfAct('pf_reset')\">🔄 Reset Finder</button>\n"
+"        <button onclick=\"pfAct('pf_search')\">ðŸ” Search Value</button>\n"
+"        <button onclick=\"pfAct('pf_dec')\">ðŸ“‰ Decreased (-1)</button>\n"
+"        <button onclick=\"pfAct('pf_inc')\">ðŸ“ˆ Increased (+1)</button>\n"
+"        <button onclick=\"pfAct('pf_reset')\">ðŸ”„ Reset Finder</button>\n"
 "      </div>\n"
 "      <div id='cheatList'></div>\n"
 "    </div>\n"
@@ -606,13 +608,13 @@ static const char quest_vr_studio_html[] =
 "</div>\n"
 "<div class='modal' id='archModal'>\n"
 "  <div class='card'>\n"
-"    <div class='card-hdr'><span>📚 Legitimate ZX Spectrum Archives (Internet Archive + ZXDB + Bundled)</span><button onclick=\"document.getElementById('archModal').classList.remove('open')\">✕</button></div>\n"
+"    <div class='card-hdr'><span>ðŸ“š Legitimate ZX Spectrum Archives (Internet Archive + ZXDB + Bundled)</span><button onclick=\"document.getElementById('archModal').classList.remove('open')\">âœ•</button></div>\n"
 "    <div class='card-body'>\n"
 "      <div class='row'>\n"
 "        <input id='archQuery' placeholder='Search Internet Archive (12,300+) or ZXDB (29,000+)...' style='flex:1'>\n"
-"        <button class='btn-arch' onclick='searchIA()'>🌐 Internet Archive</button>\n"
-"        <button class='btn-cheat' onclick='searchZXDB()'>🏛️ ZXDB</button>\n"
-"        <button class='btn-random' onclick='searchLocal()'>⚡ Local Games</button>\n"
+"        <button class='btn-arch' onclick='searchIA()'>ðŸŒ Internet Archive</button>\n"
+"        <button class='btn-cheat' onclick='searchZXDB()'>ðŸ›ï¸ ZXDB</button>\n"
+"        <button class='btn-random' onclick='searchLocal()'>âš¡ Local Games</button>\n"
 "      </div>\n"
 "      <div id='archList'></div>\n"
 "    </div>\n"
@@ -659,20 +661,20 @@ static const char quest_vr_studio_html[] =
 "  const q = document.getElementById('archQuery').value;\n"
 "  const d = await fetch('/api/tosec/search?q=' + encodeURIComponent(q)).then(r=>r.json());\n"
 "  const el = document.getElementById('archList');\n"
-"  el.innerHTML = (d.results||[]).map(g => `<div class='item'><span><b>${g.title}</b> (${g.ext})</span><button class='btn-random' onclick=\"fetch('/api/control?action=load_local&file=${encodeURIComponent(g.name)}')\">▶ Play Now</button></div>`).join('');\n"
+"  el.innerHTML = (d.results||[]).map(g => `<div class='item'><span><b>${g.title}</b> (${g.ext})</span><button class='btn-random' onclick=\"fetch('/api/control?action=load_local&file=${encodeURIComponent(g.name)}')\">â–¶ Play Now</button></div>`).join('');\n"
 "}\n"
 "async function searchIA() {\n"
 "  const q = document.getElementById('archQuery').value || 'Saboteur';\n"
 "  const u = `https://archive.org/advancedsearch.php?q=${encodeURIComponent('collection:(softwarelibrary_zx_spectrum) AND title:('+q+')')}&fl[]=identifier,title,year&rows=20&output=json`;\n"
 "  const d = await fetch(u).then(r=>r.json());\n"
 "  const docs = (d.response && d.response.docs) || [];\n"
-"  document.getElementById('archList').innerHTML = docs.map(x => `<div class='item'><span><b>${x.title}</b> (${x.year||'198x'})</span><a href='https://archive.org/details/${x.identifier}' target='_blank' style='color:#38bdf8'>Open Archive.org ↗</a></div>`).join('');\n"
+"  document.getElementById('archList').innerHTML = docs.map(x => `<div class='item'><span><b>${x.title}</b> (${x.year||'198x'})</span><a href='https://archive.org/details/${x.identifier}' target='_blank' style='color:#38bdf8'>Open Archive.org â†—</a></div>`).join('');\n"
 "}\n"
 "async function searchZXDB() {\n"
 "  const q = document.getElementById('archQuery').value || 'Renegade';\n"
 "  const d = await fetch(`https://api.zxinfo.dk/v3/search?query=${encodeURIComponent(q)}&mode=tiny&size=20&offset=0&sort=rel_desc`, {headers:{Accept:'application/json'}}).then(r=>r.json());\n"
 "  const hits = (d.hits && d.hits.hits) || [];\n"
-"  document.getElementById('archList').innerHTML = hits.map(h => `<div class='item'><span><b>${h._source.title}</b> (${h._source.originalYearOfRelease||'198x'})</span><a href='https://spectrumcomputing.co.uk/entry/${h._id}' target='_blank' style='color:#c084fc'>Open ZXDB ↗</a></div>`).join('');\n"
+"  document.getElementById('archList').innerHTML = hits.map(h => `<div class='item'><span><b>${h._source.title}</b> (${h._source.originalYearOfRelease||'198x'})</span><a href='https://spectrumcomputing.co.uk/entry/${h._id}' target='_blank' style='color:#c084fc'>Open ZXDB â†—</a></div>`).join('');\n"
 "}\n"
 "</script>\n"
 "</body>\n"
@@ -2676,4 +2678,1242 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
     g_qvr.raw_dirty = 1;
   }
   qvr_unlock_raw();
+}
+
+/* ============================================================================
+ * Native Win32 FuseXR Dropdown Menus & Interactive Desktop Studio Windows
+ * ============================================================================ */
+
+#ifdef WIN32
+
+#define IDM_FXR_RANDOM_ANY        40001
+#define IDM_FXR_RANDOM_Z80        40002
+#define IDM_FXR_RANDOM_TAP        40003
+#define IDM_FXR_RANDOM_DSK        40004
+#define IDM_FXR_RANDOM_TRD        40005
+#define IDM_FXR_RANDOM_TZX        40006
+#define IDM_FXR_RANDOM_LOCAL      40007
+#define IDM_FXR_TOSEC_SEARCH_DLG  40008
+
+#define IDM_FXR_ARCHIVE_IA_LIB    40020
+#define IDM_FXR_ARCHIVE_IA_WOS    40021
+#define IDM_FXR_ARCHIVE_IA_Z80    40022
+#define IDM_FXR_ARCHIVE_ZXDB      40023
+#define IDM_FXR_ARCHIVE_WOS       40024
+#define IDM_FXR_ARCHIVE_TIPSHOP   40025
+#define IDM_FXR_ARCHIVE_VTRDOS    40026
+
+#define IDM_FXR_CHEAT_AUTO        40040
+#define IDM_FXR_CHEAT_STUDIO_DLG  40041
+#define IDM_FXR_CHEAT_LOAD_POK    40042
+#define IDM_FXR_CHEAT_POKEMEM_UI  40043
+#define IDM_FXR_CHEAT_PF_UI       40044
+#define IDM_FXR_CHEAT_CLEAR_ALL   40045
+#define IDM_FXR_CHEAT_CURATED_0   40100 /* 40100 .. 40139 */
+
+#define IDM_FXR_MACH_128          40200
+#define IDM_FXR_MACH_PLUS3        40201
+#define IDM_FXR_MACH_PLUS2        40202
+#define IDM_FXR_MACH_48           40203
+#define IDM_FXR_MACH_PENTAGON     40204
+#define IDM_FXR_MACH_SCORPION     40205
+
+#define IDM_FXR_FILT_TV2X         40220
+#define IDM_FXR_FILT_TV3X         40221
+#define IDM_FXR_FILT_PALTV        40222
+#define IDM_FXR_FILT_NORMAL       40223
+#define IDM_FXR_FILT_2X           40224
+#define IDM_FXR_FILT_3X           40225
+#define IDM_FXR_FILT_SUPEREAGLE   40226
+#define IDM_FXR_FILT_ADVMAME2X    40227
+#define IDM_FXR_FILT_ADVMAME3X    40228
+
+#define IDM_FXR_JOY_KEMPSTON      40240
+#define IDM_FXR_JOY_CURSOR        40241
+#define IDM_FXR_JOY_SINCLAIR1     40242
+#define IDM_FXR_JOY_SINCLAIR2     40243
+#define IDM_FXR_JOY_TIMEX1        40244
+
+#define IDM_FXR_QUICK_TAPE_PLAY   40260
+#define IDM_FXR_QUICK_TAPE_REWIND 40261
+#define IDM_FXR_QUICK_TAPE_EJECT  40262
+#define IDM_FXR_QUICK_RESET_SOFT  40263
+#define IDM_FXR_QUICK_RESET_HARD  40264
+
+#define IDM_FXR_VR_TOGGLE         40280
+#define IDM_FXR_VR_OPEN_BROWSER   40281
+#define IDM_FXR_VR_COPY_URL       40282
+#define IDM_FXR_VR_MODE_2D        40283
+#define IDM_FXR_VR_MODE_SBS       40284
+#define IDM_FXR_VR_MODE_TB        40285
+#define IDM_FXR_VR_MODE_ANA       40286
+#define IDM_FXR_VR_FPS_30         40287
+#define IDM_FXR_VR_FPS_50         40288
+#define IDM_FXR_VR_FPS_60         40289
+#define IDM_FXR_VR_FPS_72         40290
+#define IDM_FXR_VR_FPS_90         40291
+
+#define IDM_FXR_LOCAL_GAME_BASE   41000 /* 41000 .. 41255 */
+
+typedef struct fxr_poke_pair_t {
+  int addr;
+  int val;
+} fxr_poke_pair_t;
+
+typedef struct fxr_curated_cheat_t {
+  const char *menu_label;
+  const char *keyword;
+  fxr_poke_pair_t pokes[3];
+  int poke_count;
+} fxr_curated_cheat_t;
+
+static const fxr_curated_cheat_t g_fxr_cheats[] = {
+  { "Manic Miner - Infinite Lives (POKE 35136,0)",             "manic",    { { 35136,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Jet Set Willy - Infinite Lives (POKE 35899,0)",           "willy",    { { 35899,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Chuckie Egg - Infinite Lives (POKE 42508,0)",             "chuckie",  { { 42508,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Knight Lore - Immunity / Infinite Lives (POKE 58165,201)","knight",   { { 58165, 201 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Sabre Wulf - Immunity / Infinite Lives (POKE 43222,0)",   "sabre",    { { 43222,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Atic Atac - Infinite Energy / Immunity (POKE 37479,0)",   "atic",     { { 37479,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Head Over Heels - Infinite Lives (POKE 44747,0)",         "heels",    { { 44747,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Target Renegade - Infinite P1 Energy (POKE 34955,0)",     "renegade", { { 34955,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Chase H.Q. - Infinite Time & Turbo (POKE 39535,0)",       "chase",    { { 39535,   0 }, { 61029, 9 }, { 0, 0 } }, 2 },
+  { "R-Type - Infinite Lives & Invincibility (POKE 36709,0)",  "r-type",   { { 36709,   0 }, { 37282, 0 }, { 0, 0 } }, 2 },
+  { "Rainbow Islands - Infinite Lives (POKE 41892,0)",         "rainbow",  { { 41892,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Robocop - Infinite Lives (POKE 39812,0)",                 "robocop",  { { 39812,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Exolon - Infinite Lives & Ammo (POKE 33378,0 + 30633,0)", "exolon",   { { 33378,   0 }, { 30633, 0 }, { 0, 0 } }, 2 },
+  { "Bomb Jack - Infinite Lives (POKE 40620,0)",               "bomb",     { { 40620,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Cobra - Infinite Lives (POKE 36910,0)",                   "cobra",    { { 36910,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Green Beret - Infinite Lives (POKE 34597,0)",             "beret",    { { 34597,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Starquake - Infinite Lives (POKE 52398,0)",               "starquake",{ { 52398,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Dizzy - Infinite Lives (POKE 61213,0)",                   "dizzy",    { { 61213,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Monty on the Run - Infinite Lives (POKE 34766,0)",        "monty",    { { 34766,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+  { "Jetpac - Infinite Lives (POKE 36922,0)",                  "jetpac",   { { 36922,   0 }, { 0, 0 }, { 0, 0 } }, 1 },
+};
+#define FXR_CHEAT_COUNT ( (int)( sizeof( g_fxr_cheats ) / sizeof( g_fxr_cheats[0] ) ) )
+
+static char g_fxr_local_games[256][128];
+static int g_fxr_local_game_count = 0;
+static char g_fxr_current_game[256] = "Sinclair BASIC";
+static HWND g_fxr_main_hwnd = NULL;
+
+typedef struct fxr_tosec_entry_t {
+  char title[120];
+  char full_path[320];
+  char fmt[8];
+} fxr_tosec_entry_t;
+
+static fxr_tosec_entry_t *g_fxr_tosec = NULL;
+static int g_fxr_tosec_count = 0;
+static int g_fxr_tosec_cap = 0;
+static int g_fxr_tosec_indexed = 0;
+
+static void
+fxr_update_window_title( const char *status_suffix )
+{
+  char buf[384];
+  if( !g_fxr_main_hwnd ) return;
+  if( status_suffix && status_suffix[0] ) {
+    snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s [%s]", g_fxr_current_game, status_suffix );
+  } else {
+    snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s", g_fxr_current_game );
+  }
+  SetWindowTextA( g_fxr_main_hwnd, buf );
+}
+
+static void
+fxr_build_tosec_index( void )
+{
+  const char *tosec_root = "C:/Users/adria/Desktop/DEV FOLDER/_=[ 07_3MU_R37R0 ]=_/Sinclair ZX Spectrum [TOSEC]/Games";
+  const char *cats[] = { "[Z80]", "[TAP]", "[DSK]", "[TRD]", "[TZX]" };
+  const char *fmts[] = { "z80",   "tap",   "dsk",   "trd",   "tzx" };
+  int c;
+
+  if( g_fxr_tosec_indexed ) return;
+  g_fxr_tosec_indexed = 1;
+
+  g_fxr_tosec_cap = 32768;
+  g_fxr_tosec = (fxr_tosec_entry_t *)malloc( (size_t)g_fxr_tosec_cap * sizeof( fxr_tosec_entry_t ) );
+  if( !g_fxr_tosec ) return;
+  g_fxr_tosec_count = 0;
+
+  for( c = 0; c < 5; c++ ) {
+    char pattern[512];
+    WIN32_FIND_DATAA fd;
+    HANDLE hFind;
+    snprintf( pattern, sizeof( pattern ), "%s/%s/*.*", tosec_root, cats[c] );
+    hFind = FindFirstFileA( pattern, &fd );
+    if( hFind == INVALID_HANDLE_VALUE ) continue;
+    do {
+      if( fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) continue;
+      if( fd.cFileName[0] == '.' ) continue;
+      if( g_fxr_tosec_count >= g_fxr_tosec_cap ) break;
+      fxr_tosec_entry_t *e = &g_fxr_tosec[g_fxr_tosec_count++];
+      snprintf( e->title, sizeof( e->title ), "%s", fd.cFileName );
+      char *zext = strstr( e->title, ".zip" );
+      if( !zext ) zext = strstr( e->title, ".ZIP" );
+      if( zext ) *zext = '\0';
+      snprintf( e->full_path, sizeof( e->full_path ), "%s/%s/%s", tosec_root, cats[c], fd.cFileName );
+      snprintf( e->fmt, sizeof( e->fmt ), "%s", fmts[c] );
+    } while( FindNextFileA( hFind, &fd ) );
+    FindClose( hFind );
+  }
+}
+
+static void
+fxr_load_file_direct( const char *full_path, const char *display_name, const char *fmt_hint )
+{
+  if( !full_path || !full_path[0] ) return;
+  if( !g_qvr.initialized ) quest_vr_init();
+
+  settings_current.joy_prompt = 0;
+  settings_current.confirm_actions = 0;
+  settings_current.auto_load = 1;
+  settings_current.detect_loader = 1;
+  settings_current.fastload = 1;
+  settings_current.accelerate_loader = 1;
+
+  /* For TAP/TZX files, select 48K unless [128K] is in the title so 48K loaders never conflict with 128K RAM paging */
+  if( fmt_hint && ( !strcasecmp( fmt_hint, "tap" ) || !strcasecmp( fmt_hint, "tzx" ) ) ) {
+    if( display_name && ( strstr( display_name, "128" ) || strstr( display_name, "+2" ) || strstr( display_name, "+3" ) ) ) {
+      machine_select_id( "128" );
+    } else {
+      machine_select_id( "48" );
+    }
+  }
+
+  utils_open_file( full_path, 1, NULL );
+  pokemem_autoload_pokfile();
+  display_refresh_all();
+
+  snprintf( g_fxr_current_game, sizeof( g_fxr_current_game ), "%s",
+            ( display_name && display_name[0] ) ? display_name : full_path );
+  fxr_update_window_title( NULL );
+}
+
+static void
+fxr_load_random_game( const char *fmt_filter, int local_only )
+{
+  static uint64_t rng = 0x9e3779b97f4a7c15ULL;
+  rng ^= qvr_now_ms() + 0x517cc1b727220a95ULL;
+  rng ^= rng >> 12;
+  rng ^= rng << 25;
+  rng ^= rng >> 27;
+  uint64_t rval = rng * 0x2545f4914f6cdd1dULL;
+
+  if( !local_only ) {
+    fxr_build_tosec_index();
+    if( g_fxr_tosec && g_fxr_tosec_count > 0 ) {
+      int tries;
+      for( tries = 0; tries < 500; tries++ ) {
+        int idx = (int)( ( rval + (uint64_t)tries * 7919ULL ) % (uint64_t)g_fxr_tosec_count );
+        const fxr_tosec_entry_t *e = &g_fxr_tosec[idx];
+        if( fmt_filter && fmt_filter[0] ) {
+          if( strcasecmp( e->fmt, fmt_filter ) != 0 ) continue;
+        } else {
+          if( !strcasecmp( e->fmt, "tzx" ) ) continue;
+        }
+        fxr_load_file_direct( e->full_path, e->title, e->fmt );
+        return;
+      }
+    }
+  }
+
+  if( g_fxr_local_game_count > 0 ) {
+    int idx = (int)( rval % (uint64_t)g_fxr_local_game_count );
+    char full_path[512];
+    const char *fname = g_fxr_local_games[idx];
+    const char *ext = strrchr( fname, '.' );
+    if( !g_qvr.initialized ) quest_vr_init();
+    snprintf( full_path, sizeof( full_path ), "%s/games/%s", g_qvr.base_dir, fname );
+    fxr_load_file_direct( full_path, fname, ext ? ( ext + 1 ) : "z80" );
+  }
+}
+
+static void
+fxr_apply_poke_direct( int bank, int addr, int val )
+{
+  int i, found = -1;
+  uint8_t orig;
+  addr &= 0xffff;
+  val &= 0xff;
+  orig = qvr_read_mem_byte( bank, addr );
+
+  qvr_lock_cmd();
+  for( i = 0; i < g_qvr.custom_poke_count; i++ ) {
+    if( g_qvr.custom_pokes[i].active &&
+        g_qvr.custom_pokes[i].bank == bank &&
+        g_qvr.custom_pokes[i].address == addr ) {
+      found = i;
+      break;
+    }
+  }
+  if( found >= 0 ) {
+    g_qvr.custom_pokes[found].value = val;
+  } else if( g_qvr.custom_poke_count < QVR_MAX_CUSTOM_POKES ) {
+    qvr_custom_poke_t *p = &g_qvr.custom_pokes[g_qvr.custom_poke_count++];
+    p->active = 1;
+    p->bank = bank;
+    p->address = addr;
+    p->value = val;
+    p->orig = orig;
+  }
+  qvr_unlock_cmd();
+
+  qvr_write_mem_byte( bank, addr, (uint8_t)val );
+  display_refresh_all();
+}
+
+static void
+fxr_clear_all_cheats_direct( void )
+{
+  int i;
+  GSList *item;
+  qvr_lock_cmd();
+  for( i = 0; i < g_qvr.custom_poke_count; i++ ) {
+    if( g_qvr.custom_pokes[i].active ) {
+      qvr_write_mem_byte( g_qvr.custom_pokes[i].bank,
+                          g_qvr.custom_pokes[i].address,
+                          (uint8_t)g_qvr.custom_pokes[i].orig );
+      g_qvr.custom_pokes[i].active = 0;
+    }
+  }
+  g_qvr.custom_poke_count = 0;
+  qvr_unlock_cmd();
+
+  for( item = trainer_list; item; item = item->next ) {
+    trainer_t *tr = (trainer_t *)item->data;
+    if( tr && tr->active ) {
+      pokemem_trainer_deactivate( tr );
+    }
+  }
+  display_refresh_all();
+  fxr_update_window_title( "Cheats Restored" );
+}
+
+static void
+fxr_apply_curated_cheat( int cheat_idx )
+{
+  int k;
+  if( cheat_idx < 0 || cheat_idx >= FXR_CHEAT_COUNT ) return;
+  const fxr_curated_cheat_t *c = &g_fxr_cheats[cheat_idx];
+  for( k = 0; k < c->poke_count; k++ ) {
+    fxr_apply_poke_direct( 8, c->pokes[k].addr, c->pokes[k].val );
+  }
+  fxr_update_window_title( c->menu_label );
+}
+
+static int
+fxr_auto_apply_current_game_cheat( void )
+{
+  char low[256];
+  size_t i;
+  int c;
+  for( i = 0; g_fxr_current_game[i] && i + 1 < sizeof( low ); i++ ) {
+    low[i] = (char)tolower( (unsigned char)g_fxr_current_game[i] );
+  }
+  low[i] = '\0';
+
+  for( c = 0; c < FXR_CHEAT_COUNT; c++ ) {
+    if( strstr( low, g_fxr_cheats[c].keyword ) ) {
+      fxr_apply_curated_cheat( c );
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* ============================================================================
+ * Native Win32 Modeless Window 1: TOSEC 29,000+ Archive Search & Launcher
+ * ============================================================================ */
+
+static HWND g_hwnd_tosec_dlg = NULL;
+static HWND g_hwnd_tosec_edit = NULL;
+static HWND g_hwnd_tosec_list = NULL;
+static HWND g_hwnd_tosec_status = NULL;
+static char g_tosec_dlg_fmt[16] = "";
+static int g_tosec_dlg_map[400];
+static int g_tosec_dlg_map_count = 0;
+
+#define IDC_TOSEC_EDIT    5001
+#define IDC_TOSEC_BTN_GO  5002
+#define IDC_TOSEC_BTN_RND 5003
+#define IDC_TOSEC_BTN_ALL 5004
+#define IDC_TOSEC_BTN_Z80 5005
+#define IDC_TOSEC_BTN_TAP 5006
+#define IDC_TOSEC_BTN_DSK 5007
+#define IDC_TOSEC_BTN_TRD 5008
+#define IDC_TOSEC_BTN_TZX 5009
+#define IDC_TOSEC_LIST    5010
+#define IDC_TOSEC_LOAD    5011
+
+static void
+fxr_refresh_tosec_listbox( void )
+{
+  char q[128] = { 0 };
+  char q_low[128] = { 0 };
+  int i, total_matched = 0;
+  size_t k;
+
+  if( !g_hwnd_tosec_list ) return;
+  fxr_build_tosec_index();
+
+  if( g_hwnd_tosec_edit ) {
+    GetWindowTextA( g_hwnd_tosec_edit, q, sizeof( q ) );
+  }
+  for( k = 0; q[k] && k + 1 < sizeof( q_low ); k++ ) {
+    q_low[k] = (char)tolower( (unsigned char)q[k] );
+  }
+  q_low[k] = '\0';
+
+  SendMessageA( g_hwnd_tosec_list, LB_RESETCONTENT, 0, 0 );
+  g_tosec_dlg_map_count = 0;
+
+  for( i = 0; i < g_fxr_tosec_count; i++ ) {
+    const fxr_tosec_entry_t *e = &g_fxr_tosec[i];
+    if( g_tosec_dlg_fmt[0] && strcasecmp( e->fmt, g_tosec_dlg_fmt ) != 0 ) continue;
+    if( q_low[0] ) {
+      char t_low[128];
+      for( k = 0; e->title[k] && k + 1 < sizeof( t_low ); k++ ) {
+        t_low[k] = (char)tolower( (unsigned char)e->title[k] );
+      }
+      t_low[k] = '\0';
+      if( !strstr( t_low, q_low ) ) continue;
+    }
+    total_matched++;
+    if( g_tosec_dlg_map_count < 350 ) {
+      char row_txt[160];
+      snprintf( row_txt, sizeof( row_txt ), "[%s]  %s", e->fmt, e->title );
+      SendMessageA( g_hwnd_tosec_list, LB_ADDSTRING, 0, (LPARAM)row_txt );
+      g_tosec_dlg_map[g_tosec_dlg_map_count++] = i;
+    }
+  }
+
+  if( g_tosec_dlg_map_count > 0 ) {
+    SendMessageA( g_hwnd_tosec_list, LB_SETCURSEL, 0, 0 );
+  }
+
+  if( g_hwnd_tosec_status ) {
+    char st[160];
+    snprintf( st, sizeof( st ),
+      "Showing %d of %d matching games (Total Indexed: %d games). Double-click any game to play!",
+      g_tosec_dlg_map_count, total_matched, g_fxr_tosec_count );
+    SetWindowTextA( g_hwnd_tosec_status, st );
+  }
+}
+
+static void
+fxr_tosec_load_selected( void )
+{
+  if( !g_hwnd_tosec_list ) return;
+  int sel = (int)SendMessageA( g_hwnd_tosec_list, LB_GETCURSEL, 0, 0 );
+  if( sel >= 0 && sel < g_tosec_dlg_map_count ) {
+    int idx = g_tosec_dlg_map[sel];
+    if( idx >= 0 && idx < g_fxr_tosec_count ) {
+      const fxr_tosec_entry_t *e = &g_fxr_tosec[idx];
+      fxr_load_file_direct( e->full_path, e->title, e->fmt );
+    }
+  }
+}
+
+static LRESULT CALLBACK
+fxr_tosec_wnd_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+  switch( msg ) {
+  case WM_COMMAND: {
+    WORD id = LOWORD( wParam );
+    WORD code = HIWORD( wParam );
+    if( id == IDC_TOSEC_EDIT && code == EN_CHANGE ) {
+      fxr_refresh_tosec_listbox();
+      return 0;
+    }
+    if( id == IDC_TOSEC_BTN_GO ) {
+      fxr_refresh_tosec_listbox();
+      return 0;
+    }
+    if( id == IDC_TOSEC_BTN_RND ) {
+      fxr_load_random_game( g_tosec_dlg_fmt, 0 );
+      return 0;
+    }
+    if( id == IDC_TOSEC_BTN_ALL ) { g_tosec_dlg_fmt[0] = '\0'; fxr_refresh_tosec_listbox(); return 0; }
+    if( id == IDC_TOSEC_BTN_Z80 ) { strcpy( g_tosec_dlg_fmt, "z80" ); fxr_refresh_tosec_listbox(); return 0; }
+    if( id == IDC_TOSEC_BTN_TAP ) { strcpy( g_tosec_dlg_fmt, "tap" ); fxr_refresh_tosec_listbox(); return 0; }
+    if( id == IDC_TOSEC_BTN_DSK ) { strcpy( g_tosec_dlg_fmt, "dsk" ); fxr_refresh_tosec_listbox(); return 0; }
+    if( id == IDC_TOSEC_BTN_TRD ) { strcpy( g_tosec_dlg_fmt, "trd" ); fxr_refresh_tosec_listbox(); return 0; }
+    if( id == IDC_TOSEC_BTN_TZX ) { strcpy( g_tosec_dlg_fmt, "tzx" ); fxr_refresh_tosec_listbox(); return 0; }
+    if( id == IDC_TOSEC_LOAD || ( id == IDC_TOSEC_LIST && code == LBN_DBLCLK ) ) {
+      fxr_tosec_load_selected();
+      return 0;
+    }
+    break;
+  }
+  case WM_CLOSE:
+    DestroyWindow( hWnd );
+    g_hwnd_tosec_dlg = NULL;
+    g_hwnd_tosec_edit = NULL;
+    g_hwnd_tosec_list = NULL;
+    g_hwnd_tosec_status = NULL;
+    return 0;
+  }
+  return DefWindowProcA( hWnd, msg, wParam, lParam );
+}
+
+static void
+fxr_open_tosec_search_dialog( HWND hParent )
+{
+  static int class_reg = 0;
+  HFONT hFont;
+
+  if( g_hwnd_tosec_dlg && IsWindow( g_hwnd_tosec_dlg ) ) {
+    ShowWindow( g_hwnd_tosec_dlg, SW_RESTORE );
+    SetForegroundWindow( g_hwnd_tosec_dlg );
+    return;
+  }
+
+  if( !class_reg ) {
+    WNDCLASSA wc;
+    memset( &wc, 0, sizeof( wc ) );
+    wc.lpfnWndProc = fxr_tosec_wnd_proc;
+    wc.hInstance = GetModuleHandleA( NULL );
+    wc.hCursor = LoadCursor( NULL, IDC_ARROW );
+    wc.hbrBackground = (HBRUSH)( COLOR_BTNFACE + 1 );
+    wc.lpszClassName = "FuseXR_TOSEC_Dlg";
+    RegisterClassA( &wc );
+    class_reg = 1;
+  }
+
+  g_hwnd_tosec_dlg = CreateWindowExA(
+    0, "FuseXR_TOSEC_Dlg",
+    "FuseXR - Search 29,000+ ZX Spectrum TOSEC Archive & Classics",
+    WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
+    CW_USEDEFAULT, CW_USEDEFAULT, 660, 500,
+    hParent, NULL, GetModuleHandleA( NULL ), NULL );
+
+  hFont = (HFONT)GetStockObject( DEFAULT_GUI_FONT );
+
+  HWND hLbl = CreateWindowA( "STATIC", "Search Game Title:", WS_CHILD | WS_VISIBLE,
+    14, 16, 110, 20, g_hwnd_tosec_dlg, NULL, NULL, NULL );
+  SendMessageA( hLbl, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_tosec_edit = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "",
+    WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+    125, 13, 290, 24, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_EDIT, NULL, NULL );
+  SendMessageA( g_hwnd_tosec_edit, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnGo = CreateWindowA( "BUTTON", "Search", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    422, 12, 85, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_BTN_GO, NULL, NULL );
+  SendMessageA( hBtnGo, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnRnd = CreateWindowA( "BUTTON", "Random Game", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    515, 12, 120, 26, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_BTN_RND, NULL, NULL );
+  SendMessageA( hBtnRnd, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  /* Format filter buttons */
+  struct { int id; const char *txt; int x; int w; } fb[] = {
+    { IDC_TOSEC_BTN_ALL, "All Formats (29k)", 14,  115 },
+    { IDC_TOSEC_BTN_Z80, ".Z80 Snapshots",   135, 100 },
+    { IDC_TOSEC_BTN_TAP, ".TAP Tapes",       241,  90 },
+    { IDC_TOSEC_BTN_DSK, "+3 .DSK Disks",    337,  98 },
+    { IDC_TOSEC_BTN_TRD, "TR-DOS .TRD",      441,  96 },
+    { IDC_TOSEC_BTN_TZX, ".TZX Tapes",       543,  92 },
+  };
+  int b;
+  for( b = 0; b < 6; b++ ) {
+    HWND hb = CreateWindowA( "BUTTON", fb[b].txt, WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+      fb[b].x, 45, fb[b].w, 25, g_hwnd_tosec_dlg, (HMENU)(uintptr_t)fb[b].id, NULL, NULL );
+    SendMessageA( hb, WM_SETFONT, (WPARAM)hFont, TRUE );
+  }
+
+  g_hwnd_tosec_status = CreateWindowA( "STATIC", "Indexing TOSEC Archive...", WS_CHILD | WS_VISIBLE,
+    14, 77, 620, 18, g_hwnd_tosec_dlg, NULL, NULL, NULL );
+  SendMessageA( g_hwnd_tosec_status, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_tosec_list = CreateWindowExA( WS_EX_CLIENTEDGE, "LISTBOX", "",
+    WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
+    14, 98, 622, 315, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_LIST, NULL, NULL );
+  SendMessageA( g_hwnd_tosec_list, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnLoad = CreateWindowA( "BUTTON", "Load Selected Game into FuseXR",
+    WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+    14, 422, 622, 34, g_hwnd_tosec_dlg, (HMENU)IDC_TOSEC_LOAD, NULL, NULL );
+  SendMessageA( hBtnLoad, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  fxr_refresh_tosec_listbox();
+  SetFocus( g_hwnd_tosec_edit );
+}
+
+/* ============================================================================
+ * Native Win32 Modeless Window 2: Easy Cheat & Live Pokefinder Studio
+ * ============================================================================ */
+
+static HWND g_hwnd_cheat_dlg = NULL;
+static HWND g_hwnd_cheat_combo = NULL;
+static HWND g_hwnd_poke_bank = NULL;
+static HWND g_hwnd_poke_addr = NULL;
+static HWND g_hwnd_poke_val = NULL;
+static HWND g_hwnd_peek_out = NULL;
+static HWND g_hwnd_pf_val = NULL;
+static HWND g_hwnd_pf_list = NULL;
+static HWND g_hwnd_pf_status = NULL;
+
+static int g_pf_cand_bank[256];
+static int g_pf_cand_addr[256];
+static int g_pf_cand_count = 0;
+
+#define IDC_CHEAT_COMBO      6001
+#define IDC_CHEAT_APPLY_CUR  6002
+#define IDC_CHEAT_AUTO_BTN   6003
+#define IDC_POKE_BANK        6004
+#define IDC_POKE_ADDR        6005
+#define IDC_POKE_VAL         6006
+#define IDC_POKE_APPLY_BTN   6007
+#define IDC_PEEK_BTN         6008
+#define IDC_CHEAT_CLEAR_BTN  6009
+#define IDC_PF_VAL           6010
+#define IDC_PF_SEARCH_BTN    6011
+#define IDC_PF_INC_BTN       6012
+#define IDC_PF_DEC_BTN       6013
+#define IDC_PF_RESET_BTN     6014
+#define IDC_PF_LIST          6015
+#define IDC_PF_POKE_CAND_BTN 6016
+
+static void
+fxr_refresh_pf_candidates( void )
+{
+  size_t page, offset;
+  if( !g_hwnd_pf_list ) return;
+  SendMessageA( g_hwnd_pf_list, LB_RESETCONTENT, 0, 0 );
+  g_pf_cand_count = 0;
+
+  if( pokefinder_count > 0 && pokefinder_count <= 250 ) {
+    for( page = 0; page < MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES && g_pf_cand_count < 200; page++ ) {
+      memory_page *mapping = &memory_map_ram[page];
+      int bank = mapping->page_num;
+      for( offset = 0; offset < MEMORY_PAGE_SIZE && g_pf_cand_count < 200; offset++ ) {
+        if( !( pokefinder_impossible[page][offset / 8] & ( 1 << ( offset & 7 ) ) ) ) {
+          int bank_offset = (int)( ( mapping->offset + offset ) & 0x3fff );
+          int addr16 = bank_offset;
+          if( bank == 5 ) addr16 = 0x4000 + bank_offset;
+          else if( bank == 2 ) addr16 = 0x8000 + bank_offset;
+          else if( bank == 0 ) addr16 = 0xc000 + bank_offset;
+          int cur_val = mapping->page[offset];
+          char row[128];
+          snprintf( row, sizeof( row ), "Bank %d  |  Address: %d (0x%04X)  |  Current Value: %d",
+                    bank, addr16, addr16, cur_val );
+          SendMessageA( g_hwnd_pf_list, LB_ADDSTRING, 0, (LPARAM)row );
+          g_pf_cand_bank[g_pf_cand_count] = bank;
+          g_pf_cand_addr[g_pf_cand_count] = addr16;
+          g_pf_cand_count++;
+        }
+      }
+    }
+  }
+
+  if( g_pf_cand_count > 0 ) {
+    SendMessageA( g_hwnd_pf_list, LB_SETCURSEL, 0, 0 );
+  }
+
+  if( g_hwnd_pf_status ) {
+    char st[160];
+    snprintf( st, sizeof( st ), "Live Pokefinder Matches: %lu candidate(s)%s",
+              (unsigned long)pokefinder_count,
+              ( pokefinder_count > 250 ) ? " (narrow down to <=250 to list)" : "" );
+    SetWindowTextA( g_hwnd_pf_status, st );
+  }
+}
+
+static LRESULT CALLBACK
+fxr_cheat_wnd_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+  switch( msg ) {
+  case WM_COMMAND: {
+    WORD id = LOWORD( wParam );
+    WORD code = HIWORD( wParam );
+    if( id == IDC_CHEAT_APPLY_CUR ) {
+      int sel = (int)SendMessageA( g_hwnd_cheat_combo, CB_GETCURSEL, 0, 0 );
+      if( sel >= 0 && sel < FXR_CHEAT_COUNT ) {
+        fxr_apply_curated_cheat( sel );
+        if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, g_fxr_cheats[sel].menu_label );
+      }
+      return 0;
+    }
+    if( id == IDC_CHEAT_AUTO_BTN ) {
+      if( !fxr_auto_apply_current_game_cheat() ) {
+        if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, "No exact title match - pick a game from the dropdown above." );
+      } else {
+        if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, "Auto-applied Infinite Lives for current game!" );
+      }
+      return 0;
+    }
+    if( id == IDC_POKE_APPLY_BTN ) {
+      char b_s[32] = {0}, a_s[32] = {0}, v_s[32] = {0}, out[128];
+      GetWindowTextA( g_hwnd_poke_bank, b_s, sizeof( b_s ) );
+      GetWindowTextA( g_hwnd_poke_addr, a_s, sizeof( a_s ) );
+      GetWindowTextA( g_hwnd_poke_val,  v_s, sizeof( v_s ) );
+      int bank = b_s[0] ? atoi( b_s ) : 8;
+      int addr = (int)strtol( a_s, NULL, 0 );
+      int val  = (int)strtol( v_s, NULL, 0 );
+      if( addr > 0 && addr <= 65535 ) {
+        fxr_apply_poke_direct( bank, addr, val );
+        snprintf( out, sizeof( out ), "Applied POKE %d, %d (Bank %d)", addr, val & 0xff, bank );
+        if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, out );
+      }
+      return 0;
+    }
+    if( id == IDC_PEEK_BTN ) {
+      char a_s[32] = {0}, out[160];
+      GetWindowTextA( g_hwnd_poke_addr, a_s, sizeof( a_s ) );
+      int addr = (int)strtol( a_s, NULL, 0 ) & 0xffff;
+      snprintf( out, sizeof( out ), "PEEK %d..%d:  [%d, %d, %d, %d, %d, %d, %d, %d]",
+        addr, ( addr + 7 ) & 0xffff,
+        qvr_read_mem_byte( 8, addr ),     qvr_read_mem_byte( 8, addr + 1 ),
+        qvr_read_mem_byte( 8, addr + 2 ), qvr_read_mem_byte( 8, addr + 3 ),
+        qvr_read_mem_byte( 8, addr + 4 ), qvr_read_mem_byte( 8, addr + 5 ),
+        qvr_read_mem_byte( 8, addr + 6 ), qvr_read_mem_byte( 8, addr + 7 ) );
+      if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, out );
+      return 0;
+    }
+    if( id == IDC_CHEAT_CLEAR_BTN ) {
+      fxr_clear_all_cheats_direct();
+      if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, "Restored all POKEs and deactivated trainers." );
+      return 0;
+    }
+    if( id == IDC_PF_SEARCH_BTN ) {
+      char v_s[32] = {0};
+      GetWindowTextA( g_hwnd_pf_val, v_s, sizeof( v_s ) );
+      int val = (int)strtol( v_s, NULL, 0 ) & 0xff;
+      if( !pokefinder_is_allocated() || pokefinder_count == 0 ) pokefinder_clear();
+      pokefinder_search( (libspectrum_byte)val );
+      fxr_refresh_pf_candidates();
+      return 0;
+    }
+    if( id == IDC_PF_INC_BTN ) {
+      if( !pokefinder_is_allocated() ) pokefinder_clear();
+      pokefinder_incremented();
+      fxr_refresh_pf_candidates();
+      return 0;
+    }
+    if( id == IDC_PF_DEC_BTN ) {
+      if( !pokefinder_is_allocated() ) pokefinder_clear();
+      pokefinder_decremented();
+      fxr_refresh_pf_candidates();
+      return 0;
+    }
+    if( id == IDC_PF_RESET_BTN ) {
+      pokefinder_clear();
+      fxr_refresh_pf_candidates();
+      return 0;
+    }
+    if( id == IDC_PF_POKE_CAND_BTN || ( id == IDC_PF_LIST && code == LBN_DBLCLK ) ) {
+      int sel = (int)SendMessageA( g_hwnd_pf_list, LB_GETCURSEL, 0, 0 );
+      if( sel >= 0 && sel < g_pf_cand_count ) {
+        char v_s[32] = {0}, out[128];
+        GetWindowTextA( g_hwnd_pf_val, v_s, sizeof( v_s ) );
+        int val = v_s[0] ? ( (int)strtol( v_s, NULL, 0 ) & 0xff ) : 99;
+        int bank = g_pf_cand_bank[sel];
+        int addr = g_pf_cand_addr[sel];
+        fxr_apply_poke_direct( 8, addr, val );
+        snprintf( out, sizeof( out ), "Locked candidate POKE %d, %d (Bank %d)!", addr, val, bank );
+        if( g_hwnd_peek_out ) SetWindowTextA( g_hwnd_peek_out, out );
+      }
+      return 0;
+    }
+    break;
+  }
+  case WM_CLOSE:
+    DestroyWindow( hWnd );
+    g_hwnd_cheat_dlg = NULL;
+    return 0;
+  }
+  return DefWindowProcA( hWnd, msg, wParam, lParam );
+}
+
+static void
+fxr_open_easy_cheat_dialog( HWND hParent )
+{
+  static int class_reg = 0;
+  HFONT hFont;
+  int i;
+
+  if( g_hwnd_cheat_dlg && IsWindow( g_hwnd_cheat_dlg ) ) {
+    ShowWindow( g_hwnd_cheat_dlg, SW_RESTORE );
+    SetForegroundWindow( g_hwnd_cheat_dlg );
+    return;
+  }
+
+  if( !class_reg ) {
+    WNDCLASSA wc;
+    memset( &wc, 0, sizeof( wc ) );
+    wc.lpfnWndProc = fxr_cheat_wnd_proc;
+    wc.hInstance = GetModuleHandleA( NULL );
+    wc.hCursor = LoadCursor( NULL, IDC_ARROW );
+    wc.hbrBackground = (HBRUSH)( COLOR_BTNFACE + 1 );
+    wc.lpszClassName = "FuseXR_Cheat_Dlg";
+    RegisterClassA( &wc );
+    class_reg = 1;
+  }
+
+  g_hwnd_cheat_dlg = CreateWindowExA(
+    0, "FuseXR_Cheat_Dlg",
+    "FuseXR - Easy Cheat, Custom POKE & Live Pokefinder Studio",
+    WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
+    CW_USEDEFAULT, CW_USEDEFAULT, 620, 490,
+    hParent, NULL, GetModuleHandleA( NULL ), NULL );
+
+  hFont = (HFONT)GetStockObject( DEFAULT_GUI_FONT );
+
+  /* 1. Curated 1-Click Cheats */
+  HWND hL1 = CreateWindowA( "STATIC", "1. Curated 1-Click Classic Cheats:", WS_CHILD | WS_VISIBLE,
+    14, 14, 240, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hL1, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_cheat_combo = CreateWindowA( "COMBOBOX", "",
+    WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+    14, 34, 355, 300, g_hwnd_cheat_dlg, (HMENU)IDC_CHEAT_COMBO, NULL, NULL );
+  SendMessageA( g_hwnd_cheat_combo, WM_SETFONT, (WPARAM)hFont, TRUE );
+  for( i = 0; i < FXR_CHEAT_COUNT; i++ ) {
+    SendMessageA( g_hwnd_cheat_combo, CB_ADDSTRING, 0, (LPARAM)g_fxr_cheats[i].menu_label );
+  }
+  SendMessageA( g_hwnd_cheat_combo, CB_SETCURSEL, 0, 0 );
+
+  HWND hBApply = CreateWindowA( "BUTTON", "Apply Cheat", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+    376, 33, 105, 25, g_hwnd_cheat_dlg, (HMENU)IDC_CHEAT_APPLY_CUR, NULL, NULL );
+  SendMessageA( hBApply, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBAuto = CreateWindowA( "BUTTON", "Auto-Detect Game", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    487, 33, 108, 25, g_hwnd_cheat_dlg, (HMENU)IDC_CHEAT_AUTO_BTN, NULL, NULL );
+  SendMessageA( hBAuto, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  /* 2. Direct Memory POKE & PEEK */
+  HWND hL2 = CreateWindowA( "STATIC", "2. Direct Memory POKE / PEEK (Bank 8 = Active 64K, Address 16384..65535, Value 0..255):",
+    WS_CHILD | WS_VISIBLE, 14, 72, 580, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hL2, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hLBk = CreateWindowA( "STATIC", "Bank:", WS_CHILD | WS_VISIBLE, 14, 97, 36, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hLBk, WM_SETFONT, (WPARAM)hFont, TRUE );
+  g_hwnd_poke_bank = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "8", WS_CHILD | WS_VISIBLE,
+    52, 94, 38, 23, g_hwnd_cheat_dlg, (HMENU)IDC_POKE_BANK, NULL, NULL );
+  SendMessageA( g_hwnd_poke_bank, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hLAd = CreateWindowA( "STATIC", "Address:", WS_CHILD | WS_VISIBLE, 100, 97, 52, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hLAd, WM_SETFONT, (WPARAM)hFont, TRUE );
+  g_hwnd_poke_addr = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "35136", WS_CHILD | WS_VISIBLE,
+    154, 94, 72, 23, g_hwnd_cheat_dlg, (HMENU)IDC_POKE_ADDR, NULL, NULL );
+  SendMessageA( g_hwnd_poke_addr, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hLVl = CreateWindowA( "STATIC", "Value:", WS_CHILD | WS_VISIBLE, 236, 97, 40, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hLVl, WM_SETFONT, (WPARAM)hFont, TRUE );
+  g_hwnd_poke_val = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "0", WS_CHILD | WS_VISIBLE,
+    278, 94, 52, 23, g_hwnd_cheat_dlg, (HMENU)IDC_POKE_VAL, NULL, NULL );
+  SendMessageA( g_hwnd_poke_val, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPoke = CreateWindowA( "BUTTON", "Apply POKE", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    338, 93, 86, 25, g_hwnd_cheat_dlg, (HMENU)IDC_POKE_APPLY_BTN, NULL, NULL );
+  SendMessageA( hBPoke, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPeek = CreateWindowA( "BUTTON", "PEEK 8B", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    430, 93, 72, 25, g_hwnd_cheat_dlg, (HMENU)IDC_PEEK_BTN, NULL, NULL );
+  SendMessageA( hBPeek, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBClear = CreateWindowA( "BUTTON", "Restore All", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    508, 93, 87, 25, g_hwnd_cheat_dlg, (HMENU)IDC_CHEAT_CLEAR_BTN, NULL, NULL );
+  SendMessageA( hBClear, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_peek_out = CreateWindowA( "STATIC", "Status: Ready.", WS_CHILD | WS_VISIBLE,
+    14, 124, 580, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( g_hwnd_peek_out, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  /* 3. Live Pokefinder */
+  HWND hL3 = CreateWindowA( "STATIC", "3. Live Pokefinder (Find Lives / Ammo Counters in Real Time):",
+    WS_CHILD | WS_VISIBLE, 14, 152, 580, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hL3, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hLPfV = CreateWindowA( "STATIC", "Lives/Value:", WS_CHILD | WS_VISIBLE, 14, 177, 72, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( hLPfV, WM_SETFONT, (WPARAM)hFont, TRUE );
+  g_hwnd_pf_val = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "3", WS_CHILD | WS_VISIBLE,
+    88, 174, 55, 23, g_hwnd_cheat_dlg, (HMENU)IDC_PF_VAL, NULL, NULL );
+  SendMessageA( g_hwnd_pf_val, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPfS = CreateWindowA( "BUTTON", "Search Exact Value", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    150, 173, 130, 25, g_hwnd_cheat_dlg, (HMENU)IDC_PF_SEARCH_BTN, NULL, NULL );
+  SendMessageA( hBPfS, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPfI = CreateWindowA( "BUTTON", "Increased (+)", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    286, 173, 100, 25, g_hwnd_cheat_dlg, (HMENU)IDC_PF_INC_BTN, NULL, NULL );
+  SendMessageA( hBPfI, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPfD = CreateWindowA( "BUTTON", "Decreased (-)", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    392, 173, 100, 25, g_hwnd_cheat_dlg, (HMENU)IDC_PF_DEC_BTN, NULL, NULL );
+  SendMessageA( hBPfD, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPfR = CreateWindowA( "BUTTON", "Reset", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    498, 173, 97, 25, g_hwnd_cheat_dlg, (HMENU)IDC_PF_RESET_BTN, NULL, NULL );
+  SendMessageA( hBPfR, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_pf_status = CreateWindowA( "STATIC", "Live Pokefinder Matches: Ready", WS_CHILD | WS_VISIBLE,
+    14, 204, 580, 18, g_hwnd_cheat_dlg, NULL, NULL, NULL );
+  SendMessageA( g_hwnd_pf_status, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_pf_list = CreateWindowExA( WS_EX_CLIENTEDGE, "LISTBOX", "",
+    WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
+    14, 224, 581, 180, g_hwnd_cheat_dlg, (HMENU)IDC_PF_LIST, NULL, NULL );
+  SendMessageA( g_hwnd_pf_list, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBPfLock = CreateWindowA( "BUTTON", "POKE Selected Candidate Address with Value Above",
+    WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    14, 412, 581, 30, g_hwnd_cheat_dlg, (HMENU)IDC_PF_POKE_CAND_BTN, NULL, NULL );
+  SendMessageA( hBPfLock, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  fxr_refresh_pf_candidates();
+}
+
+#endif /* WIN32 */
+
+void
+quest_vr_populate_win32_menus( void *hWnd_ptr )
+{
+#ifdef WIN32
+  HWND hWnd = (HWND)hWnd_ptr;
+  HMENU hBar;
+  int i;
+
+  if( !hWnd ) return;
+  g_fxr_main_hwnd = hWnd;
+  if( !g_qvr.initialized ) quest_vr_init();
+
+  hBar = GetMenu( hWnd );
+  if( !hBar ) return;
+
+  /* 1. Build "Games & Archives" Menu */
+  HMENU hMenuGames = CreatePopupMenu();
+  HMENU hSubRndFmt = CreatePopupMenu();
+  HMENU hSubSnap   = CreatePopupMenu();
+  HMENU hSubTape   = CreatePopupMenu();
+  HMENU hSubDisk   = CreatePopupMenu();
+  HMENU hSubArch   = CreatePopupMenu();
+
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_Z80,   "Random .&Z80 Snapshot (Instant)" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TAP,   "Random .&TAP Cassette Tape" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_DSK,   "Random +3 .&DSK Floppy Disk" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TRD,   "Random Pentagon .&TRD Disk" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TZX,   "Random .T&ZX Turbo Tape" );
+  AppendMenuA( hSubRndFmt, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_LOCAL, "Random &Bundled Classic Game" );
+
+  /* Scan bundled games/ folder */
+  g_fxr_local_game_count = 0;
+  {
+    char pattern[512];
+    WIN32_FIND_DATAA fd;
+    HANDLE hFind;
+    snprintf( pattern, sizeof( pattern ), "%s/games/*.*", g_qvr.base_dir );
+    hFind = FindFirstFileA( pattern, &fd );
+    if( hFind != INVALID_HANDLE_VALUE ) {
+      do {
+        if( fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) continue;
+        const char *fn = fd.cFileName;
+        if( fn[0] == '.' || fn[0] == '_' ) continue;
+        const char *dot = strrchr( fn, '.' );
+        if( !dot ) continue;
+        const char *ext = dot + 1;
+        if( g_fxr_local_game_count >= 250 ) break;
+        if( !strcasecmp( ext, "z80" ) || !strcasecmp( ext, "sna" ) ) {
+          int idx = g_fxr_local_game_count++;
+          snprintf( g_fxr_local_games[idx], sizeof( g_fxr_local_games[idx] ), "%s", fn );
+          AppendMenuA( hSubSnap, MF_STRING, IDM_FXR_LOCAL_GAME_BASE + idx, fn );
+        } else if( !strcasecmp( ext, "tap" ) || !strcasecmp( ext, "tzx" ) ) {
+          int idx = g_fxr_local_game_count++;
+          snprintf( g_fxr_local_games[idx], sizeof( g_fxr_local_games[idx] ), "%s", fn );
+          AppendMenuA( hSubTape, MF_STRING, IDM_FXR_LOCAL_GAME_BASE + idx, fn );
+        } else if( !strcasecmp( ext, "dsk" ) || !strcasecmp( ext, "trd" ) || !strcasecmp( ext, "scl" ) ) {
+          int idx = g_fxr_local_game_count++;
+          snprintf( g_fxr_local_games[idx], sizeof( g_fxr_local_games[idx] ), "%s", fn );
+          AppendMenuA( hSubDisk, MF_STRING, IDM_FXR_LOCAL_GAME_BASE + idx, fn );
+        }
+      } while( FindNextFileA( hFind, &fd ) );
+      FindClose( hFind );
+    }
+  }
+
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_IA_LIB,  "Internet Archive - &ZX Spectrum Library" );
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_IA_WOS,  "Internet Archive - &World of Spectrum Showcase" );
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_IA_Z80,  "Internet Archive - .&Z80 Snapshot Collection" );
+  AppendMenuA( hSubArch, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_ZXDB,    "&Spectrum Computing (Official ZXDB)" );
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_WOS,     "World of Spectrum (&Classic Archive)" );
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_TIPSHOP, "The &Tipshop (.POK Trainers && Cheats)" );
+  AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_VTRDOS,  "&Virtual TR-DOS (.TRD / .SCL Disks)" );
+
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_RANDOM_ANY,       "Load &Random Game (TOSEC 29k)\tF11" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubRndFmt,     "Random Game by &Format" );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_TOSEC_SEARCH_DLG, "&Search TOSEC 29,000+ Archive..." );
+  AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubSnap,       "Featured &Snapshots (.Z80)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubTape,       "Featured &Tapes (.TAP / .TZX)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDisk,       "Featured &Disks (+3 .DSK && TR-DOS .TRD)" );
+  AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubArch,       "Legitimate &Online Game Archives" );
+
+  /* 2. Build "Easy Cheat" Menu */
+  HMENU hMenuCheat = CreatePopupMenu();
+  HMENU hSubCurated = CreatePopupMenu();
+  for( i = 0; i < FXR_CHEAT_COUNT; i++ ) {
+    AppendMenuA( hSubCurated, MF_STRING, IDM_FXR_CHEAT_CURATED_0 + i, g_fxr_cheats[i].menu_label );
+  }
+  AppendMenuA( hMenuCheat, MF_STRING, IDM_FXR_CHEAT_AUTO,       "&Auto-Apply Infinite Lives for Current Game" );
+  AppendMenuA( hMenuCheat, MF_STRING, IDM_FXR_CHEAT_STUDIO_DLG, "Open &Easy Cheat && Live Pokefinder Studio..." );
+  AppendMenuA( hMenuCheat, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuCheat, MF_POPUP,  (UINT_PTR)hSubCurated,    "&Curated 1-Click Game Cheats (20 Classics)" );
+  AppendMenuA( hMenuCheat, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuCheat, MF_STRING, IDM_FXR_CHEAT_LOAD_POK,   "&Load .POK Trainer File..." );
+  AppendMenuA( hMenuCheat, MF_STRING, IDM_FXR_CHEAT_POKEMEM_UI, "Manage Active .&POK Trainers..." );
+  AppendMenuA( hMenuCheat, MF_STRING, IDM_FXR_CHEAT_PF_UI,      "Classic Fuse Poke &Finder..." );
+  AppendMenuA( hMenuCheat, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuCheat, MF_STRING, IDM_FXR_CHEAT_CLEAR_ALL,  "C&lear && Restore All Active Cheats" );
+
+  /* 3. Build "Quick Setup" Menu */
+  HMENU hMenuQuick = CreatePopupMenu();
+  HMENU hSubMach   = CreatePopupMenu();
+  HMENU hSubFilt   = CreatePopupMenu();
+  HMENU hSubJoy    = CreatePopupMenu();
+
+  AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_128,      "ZX Spectrum &128K (Toastrack)" );
+  AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_PLUS3,    "ZX Spectrum +&3 (3\" Floppy Disk)" );
+  AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_PLUS2,    "ZX Spectrum +&2 (Datacorder)" );
+  AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_48,       "ZX Spectrum &48K (Rubber Key)" );
+  AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_PENTAGON, "&Pentagon 128 (TR-DOS)" );
+  AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_SCORPION, "&Scorpion ZS 256" );
+
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_TV2X,       "&TV 2x (CRT Scanlines)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_TV3X,       "T&V 3x (CRT Scanlines)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_PALTV,      "&PAL TV (Composite)" );
+  AppendMenuA( hSubFilt, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_NORMAL,     "&Normal (1x)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_2X,         "&Double Size (2x)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_3X,         "T&riple Size (3x)" );
+  AppendMenuA( hSubFilt, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_SUPEREAGLE, "&SuperEagle" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_ADVMAME2X,  "&AdvMAME 2x" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_ADVMAME3X,  "A&dvMAME 3x" );
+
+  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_KEMPSTON,  "&Kempston Joystick" );
+  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_CURSOR,    "&Cursor / Protek Joystick" );
+  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_SINCLAIR1, "Sinclair &1 (Keys 6-0)" );
+  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_SINCLAIR2, "Sinclair &2 (Keys 1-5)" );
+  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_TIMEX1,    "&Timex 1 Joystick" );
+
+  AppendMenuA( hMenuQuick, MF_POPUP,  (UINT_PTR)hSubMach,        "Switch &Machine Model (1-Click)" );
+  AppendMenuA( hMenuQuick, MF_POPUP,  (UINT_PTR)hSubFilt,        "&CRT && Display Filter (1-Click)" );
+  AppendMenuA( hMenuQuick, MF_POPUP,  (UINT_PTR)hSubJoy,         "&Joystick Input Mode (1-Click)" );
+  AppendMenuA( hMenuQuick, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_TAPE_PLAY,   "&Play / Pause Tape\tF8" );
+  AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_TAPE_REWIND, "Re&wind Tape" );
+  AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_TAPE_EJECT,  "&Eject / Clear Tape" );
+  AppendMenuA( hMenuQuick, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_RESET_SOFT,  "&Quick Reset Machine (No Prompt)" );
+  AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_RESET_HARD,  "&Hard Reset Machine (No Prompt)" );
+
+  /* 4. Build "Quest VR" Top-Level Menu */
+  HMENU hMenuVR = CreatePopupMenu();
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_TOGGLE,       "&Start / Stop Quest VR Broadcast\tF12" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_OPEN_BROWSER, "&Open WebXR Studio in Browser" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_COPY_URL,     "&Copy Stream URL to Clipboard" );
+  AppendMenuA( hMenuVR, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_MODE_2D,      "Mode: &2D Cinema" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_MODE_SBS,     "Mode: &SBS 3D Depth" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_MODE_TB,      "Mode: Top-&Bottom 3D" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_MODE_ANA,     "Mode: &Anaglyph Red/Cyan 3D" );
+  AppendMenuA( hMenuVR, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_30,       "Target FPS: &30 FPS" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_50,       "Target FPS: &50 FPS (PAL Native)" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_60,       "Target FPS: &60 FPS" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_72,       "Target FPS: &72 FPS (Quest)" );
+  AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_90,       "Target FPS: &90 FPS (Quest 3)" );
+
+  /* Insert the 4 new top-level menus before "&Help" (position 4) */
+  int count = GetMenuItemCount( hBar );
+  int insert_pos = ( count > 1 ) ? ( count - 1 ) : count;
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuGames, "&Games && Archives" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuCheat, "Easy &Cheat" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuQuick, "&Quick Setup" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuVR,    "Quest &VR" );
+
+  DrawMenuBar( hWnd );
+  fxr_update_window_title( NULL );
+#else
+  (void)hWnd_ptr;
+#endif
+}
+
+int
+quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
+{
+#ifdef WIN32
+  HWND hWnd = (HWND)hWnd_ptr;
+
+  /* Bundled Featured Classic Game clicked */
+  if( cmd_id >= IDM_FXR_LOCAL_GAME_BASE &&
+      cmd_id < (unsigned int)( IDM_FXR_LOCAL_GAME_BASE + g_fxr_local_game_count ) ) {
+    int idx = (int)( cmd_id - IDM_FXR_LOCAL_GAME_BASE );
+    char full_path[512];
+    const char *fn = g_fxr_local_games[idx];
+    const char *ext = strrchr( fn, '.' );
+    snprintf( full_path, sizeof( full_path ), "%s/games/%s", g_qvr.base_dir, fn );
+    fxr_load_file_direct( full_path, fn, ext ? ( ext + 1 ) : "z80" );
+    return 1;
+  }
+
+  /* Curated 1-Click Cheat clicked */
+  if( cmd_id >= IDM_FXR_CHEAT_CURATED_0 &&
+      cmd_id < (unsigned int)( IDM_FXR_CHEAT_CURATED_0 + FXR_CHEAT_COUNT ) ) {
+    fxr_apply_curated_cheat( (int)( cmd_id - IDM_FXR_CHEAT_CURATED_0 ) );
+    return 1;
+  }
+
+  switch( cmd_id ) {
+  case IDM_FXR_RANDOM_ANY:   fxr_load_random_game( NULL,  0 ); return 1;
+  case IDM_FXR_RANDOM_Z80:   fxr_load_random_game( "z80", 0 ); return 1;
+  case IDM_FXR_RANDOM_TAP:   fxr_load_random_game( "tap", 0 ); return 1;
+  case IDM_FXR_RANDOM_DSK:   fxr_load_random_game( "dsk", 0 ); return 1;
+  case IDM_FXR_RANDOM_TRD:   fxr_load_random_game( "trd", 0 ); return 1;
+  case IDM_FXR_RANDOM_TZX:   fxr_load_random_game( "tzx", 0 ); return 1;
+  case IDM_FXR_RANDOM_LOCAL: fxr_load_random_game( NULL,  1 ); return 1;
+
+  case IDM_FXR_TOSEC_SEARCH_DLG:
+    fxr_open_tosec_search_dialog( hWnd );
+    return 1;
+
+  case IDM_FXR_ARCHIVE_IA_LIB:
+    ShellExecuteA( NULL, "open", "https://archive.org/details/softwarelibrary_zx_spectrum", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  case IDM_FXR_ARCHIVE_IA_WOS:
+    ShellExecuteA( NULL, "open", "https://archive.org/details/world_of_spectrum", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  case IDM_FXR_ARCHIVE_IA_Z80:
+    ShellExecuteA( NULL, "open", "https://archive.org/details/zx_spectrum_library_z80", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  case IDM_FXR_ARCHIVE_ZXDB:
+    ShellExecuteA( NULL, "open", "https://spectrumcomputing.co.uk/", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  case IDM_FXR_ARCHIVE_WOS:
+    ShellExecuteA( NULL, "open", "https://worldofspectrum.org/archive", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  case IDM_FXR_ARCHIVE_TIPSHOP:
+    ShellExecuteA( NULL, "open", "https://the-tipshop.co.uk/", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+  case IDM_FXR_ARCHIVE_VTRDOS:
+    ShellExecuteA( NULL, "open", "https://vtrd.in/", NULL, NULL, SW_SHOWNORMAL );
+    return 1;
+
+  case IDM_FXR_CHEAT_AUTO:
+    if( !fxr_auto_apply_current_game_cheat() ) {
+      fxr_open_easy_cheat_dialog( hWnd );
+    }
+    return 1;
+
+  case IDM_FXR_CHEAT_STUDIO_DLG:
+    fxr_open_easy_cheat_dialog( hWnd );
+    return 1;
+
+  case IDM_FXR_CHEAT_LOAD_POK: {
+    char file_buf[512] = { 0 };
+    OPENFILENAMEA ofn;
+    memset( &ofn, 0, sizeof( ofn ) );
+    ofn.lStructSize = sizeof( ofn );
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFilter = "POK Trainer Files (*.pok)\0*.pok\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = file_buf;
+    ofn.nMaxFile = sizeof( file_buf );
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if( GetOpenFileNameA( &ofn ) && file_buf[0] ) {
+      pokemem_read_from_file( file_buf );
+      menu_machine_pokememory( 0 );
+    }
+    return 1;
+  }
+
+  case IDM_FXR_CHEAT_POKEMEM_UI:
+    menu_machine_pokememory( 0 );
+    return 1;
+
+  case IDM_FXR_CHEAT_PF_UI:
+    menu_machine_pokefinder( 0 );
+    return 1;
+
+  case IDM_FXR_CHEAT_CLEAR_ALL:
+    fxr_clear_all_cheats_direct();
+    return 1;
+
+  case IDM_FXR_MACH_128:      machine_select_id( "128" );      display_refresh_all(); fxr_update_window_title( "128K" ); return 1;
+  case IDM_FXR_MACH_PLUS3:    machine_select_id( "plus3" );    display_refresh_all(); fxr_update_window_title( "+3" ); return 1;
+  case IDM_FXR_MACH_PLUS2:    machine_select_id( "plus2" );    display_refresh_all(); fxr_update_window_title( "+2" ); return 1;
+  case IDM_FXR_MACH_48:       machine_select_id( "48" );       display_refresh_all(); fxr_update_window_title( "48K" ); return 1;
+  case IDM_FXR_MACH_PENTAGON: machine_select_id( "pentagon" ); display_refresh_all(); fxr_update_window_title( "Pentagon 128" ); return 1;
+  case IDM_FXR_MACH_SCORPION: machine_select_id( "scorpion" ); display_refresh_all(); fxr_update_window_title( "Scorpion" ); return 1;
+
+  case IDM_FXR_FILT_TV2X:       scaler_select_scaler( SCALER_TV2X );       display_refresh_all(); return 1;
+  case IDM_FXR_FILT_TV3X:       scaler_select_scaler( SCALER_TV3X );       display_refresh_all(); return 1;
+  case IDM_FXR_FILT_PALTV:      scaler_select_scaler( SCALER_PALTV2X );    display_refresh_all(); return 1;
+  case IDM_FXR_FILT_NORMAL:     scaler_select_scaler( SCALER_NORMAL );     display_refresh_all(); return 1;
+  case IDM_FXR_FILT_2X:         scaler_select_scaler( SCALER_DOUBLESIZE ); display_refresh_all(); return 1;
+  case IDM_FXR_FILT_3X:         scaler_select_scaler( SCALER_TRIPLESIZE ); display_refresh_all(); return 1;
+  case IDM_FXR_FILT_SUPEREAGLE: scaler_select_scaler( SCALER_SUPEREAGLE ); display_refresh_all(); return 1;
+  case IDM_FXR_FILT_ADVMAME2X:  scaler_select_scaler( SCALER_ADVMAME2X );  display_refresh_all(); return 1;
+  case IDM_FXR_FILT_ADVMAME3X:  scaler_select_scaler( SCALER_ADVMAME3X );  display_refresh_all(); return 1;
+
+  case IDM_FXR_JOY_KEMPSTON:
+    settings_current.joystick_1_output = JOYSTICK_TYPE_KEMPSTON;
+    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_KEMPSTON;
+    settings_current.joy_kempston = 1;
+    periph_update();
+    fxr_update_window_title( "Joystick: Kempston" );
+    return 1;
+  case IDM_FXR_JOY_CURSOR:
+    settings_current.joystick_1_output = JOYSTICK_TYPE_CURSOR;
+    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_CURSOR;
+    periph_update();
+    fxr_update_window_title( "Joystick: Cursor" );
+    return 1;
+  case IDM_FXR_JOY_SINCLAIR1:
+    settings_current.joystick_1_output = JOYSTICK_TYPE_SINCLAIR_1;
+    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_SINCLAIR_1;
+    periph_update();
+    fxr_update_window_title( "Joystick: Sinclair 1" );
+    return 1;
+  case IDM_FXR_JOY_SINCLAIR2:
+    settings_current.joystick_1_output = JOYSTICK_TYPE_SINCLAIR_2;
+    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_SINCLAIR_2;
+    periph_update();
+    fxr_update_window_title( "Joystick: Sinclair 2" );
+    return 1;
+  case IDM_FXR_JOY_TIMEX1:
+    settings_current.joystick_1_output = JOYSTICK_TYPE_TIMEX_1;
+    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_TIMEX_1;
+    periph_update();
+    fxr_update_window_title( "Joystick: Timex 1" );
+    return 1;
+
+  case IDM_FXR_QUICK_TAPE_PLAY:   tape_toggle_play( 0 ); return 1;
+  case IDM_FXR_QUICK_TAPE_REWIND: tape_rewind(); return 1;
+  case IDM_FXR_QUICK_TAPE_EJECT:  tape_close(); return 1;
+  case IDM_FXR_QUICK_RESET_SOFT:  machine_reset( 0 ); display_refresh_all(); return 1;
+  case IDM_FXR_QUICK_RESET_HARD:  machine_reset( 1 ); display_refresh_all(); return 1;
+
+  case IDM_FXR_VR_TOGGLE:       quest_vr_toggle(); return 1;
+  case IDM_FXR_VR_OPEN_BROWSER: quest_vr_open_browser(); return 1;
+  case IDM_FXR_VR_COPY_URL:     quest_vr_copy_url_to_clipboard(); return 1;
+  case IDM_FXR_VR_MODE_2D:      quest_vr_set_stereo_mode( QUEST_VR_MODE_2D ); return 1;
+  case IDM_FXR_VR_MODE_SBS:     quest_vr_set_stereo_mode( QUEST_VR_MODE_SBS_3D ); return 1;
+  case IDM_FXR_VR_MODE_TB:      quest_vr_set_stereo_mode( QUEST_VR_MODE_TB_3D ); return 1;
+  case IDM_FXR_VR_MODE_ANA:     quest_vr_set_stereo_mode( QUEST_VR_MODE_ANAGLYPH_3D ); return 1;
+  case IDM_FXR_VR_FPS_30:       quest_vr_set_target_fps( 30 ); return 1;
+  case IDM_FXR_VR_FPS_50:       quest_vr_set_target_fps( 50 ); return 1;
+  case IDM_FXR_VR_FPS_60:       quest_vr_set_target_fps( 60 ); return 1;
+  case IDM_FXR_VR_FPS_72:       quest_vr_set_target_fps( 72 ); return 1;
+  case IDM_FXR_VR_FPS_90:       quest_vr_set_target_fps( 90 ); return 1;
+  }
+#else
+  (void)cmd_id;
+  (void)hWnd_ptr;
+#endif
+  return 0;
 }

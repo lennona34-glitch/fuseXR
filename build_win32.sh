@@ -78,7 +78,7 @@ rm -f libspectrum/make-perl.o
 LIBSPEC_SRCS=$(ls libspectrum/*.c libspectrum/zip.c libspectrum/zlib.c libspectrum/myglib/*.c 2>/dev/null | grep -v make-perl.c || true)
 for ls_src in libspectrum/*.c libspectrum/myglib/*.c; do
   case "$ls_src" in
-    *make-perl.c) continue ;;
+    *make-perl.c|*wav_macos.c) continue ;;
   esac
   ls_obj="${ls_src%.c}.o"
   if [ ! -f "$ls_obj" ] || [ "$ls_src" -nt "$ls_obj" ]; then

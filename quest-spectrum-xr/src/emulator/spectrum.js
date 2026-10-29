@@ -680,10 +680,6 @@ export class ZXSpectrum {
       }
     }
     this.rebuildKeyboardMatrix();
-
-    if (typeof window !== 'undefined' && window.__FUSE_NATIVE_STREAM_ACTIVE__ && !this._suppressFuseInput) {
-      fetch(`/input?key=${encodeURIComponent(k)}&action=${pressed ? 'press' : 'release'}`).catch(() => {});
-    }
   }
 
   setKempston(right, left, down, up, fire, source = 'default') {
@@ -696,7 +692,6 @@ export class ZXSpectrum {
     if (!this.kempstonSources) {
       this.kempstonSources = { keyboard: 0, gamepad: 0, xr: 0, remote: 0, default: 0 };
     }
-    const prevState = this.kempstonState || 0;
     this.kempstonSources[source] = state;
     this.kempstonState =
       (this.kempstonSources.keyboard || 0) |
@@ -704,21 +699,6 @@ export class ZXSpectrum {
       (this.kempstonSources.xr || 0) |
       (this.kempstonSources.remote || 0) |
       (this.kempstonSources.default || 0);
-
-    if (typeof window !== 'undefined' && window.__FUSE_NATIVE_STREAM_ACTIVE__ && this.kempstonState !== prevState) {
-      const diff = this.kempstonState ^ prevState;
-      const sendJoy = (bit, name) => {
-        if (diff & bit) {
-          const isDown = (this.kempstonState & bit) !== 0;
-          fetch(`/input?key=${name}&action=${isDown ? 'press' : 'release'}`).catch(() => {});
-        }
-      };
-      sendJoy(0x01, 'joy_right');
-      sendJoy(0x02, 'joy_left');
-      sendJoy(0x04, 'joy_down');
-      sendJoy(0x08, 'joy_up');
-      sendJoy(0x10, 'joy_fire');
-    }
   }
 
   setKempstonMouse(x, y, left, right, middle = false) {

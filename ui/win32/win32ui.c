@@ -165,6 +165,8 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
   switch( msg ) {
 
     case WM_COMMAND:
+      if( quest_vr_handle_win32_menu( LOWORD( wParam ), hWnd ) )
+        return 0;
       if( ! handle_menu( LOWORD( wParam ), hWnd ) )
         return 0;
       break;
@@ -178,6 +180,14 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       return 0;
 
     case WM_KEYDOWN:
+      if( wParam == VK_F11 ) {
+        quest_vr_handle_win32_menu( 40001, hWnd );
+        return 0;
+      }
+      if( wParam == VK_F12 ) {
+        quest_vr_toggle();
+        return 0;
+      }
       win32keyboard_keypress( wParam, lParam );
       return 0;
 
@@ -373,7 +383,7 @@ ui_init( int *argc, char ***argv )
   }
 
   /* create the window */
-  fuse_hWnd = CreateWindow( "Fuse", "Fuse", WS_OVERLAPPED | WS_CAPTION |
+  fuse_hWnd = CreateWindow( "Fuse", "FuseXR 1.10.0", WS_OVERLAPPED | WS_CAPTION |
     WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_CLIPCHILDREN,
     CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
     NULL, NULL, fuse_hInstance, NULL );
@@ -438,6 +448,7 @@ win32ui_make_menu( void )
 #ifdef HAVE_LIB_XML2
   ui_menu_activate( UI_MENU_ITEM_FILE_SVG_CAPTURE, 0 );
 #endif
+  quest_vr_populate_win32_menus( fuse_hWnd );
   return FALSE;
 }
 
@@ -1268,7 +1279,7 @@ win32ui_process_messages( int process_queue_once )
       }
 
       if( processMsg ) {
-        if( !TranslateAccelerator( fuse_hWnd, hAccels, &msg ) ) {
+        if( msg.hwnd != fuse_hWnd || !TranslateAccelerator( fuse_hWnd, hAccels, &msg ) ) {
           if( ( LOWORD( msg.message ) == WM_QUIT ) ||
               ( LOWORD( msg.message ) == WM_USER_EXIT_PROCESS_MESSAGES ) )
             return;

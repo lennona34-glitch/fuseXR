@@ -141,99 +141,15 @@ class App {
   }
 
   initFuseCoreBridge() {
-    this.useFuseNativeStream = (window.location.port === '8765');
-    this.fuseFetchInFlight = false;
-    this.fusePalColors = [
-      [0, 0, 0],       [0, 0, 215],     [215, 0, 0],     [215, 0, 215],
-      [0, 215, 0],     [0, 215, 215],   [215, 215, 0],   [215, 215, 215],
-      [0, 0, 0],       [0, 0, 255],     [255, 0, 0],     [255, 0, 255],
-      [0, 255, 0],     [0, 255, 255],   [255, 255, 0],   [255, 255, 255]
-    ];
-
+    this.useFuseNativeStream = false;
+    window.__FUSE_NATIVE_STREAM_ACTIVE__ = false;
     const badge = document.getElementById('hud-core-badge');
-    const updateCoreBadge = () => {
-      window.__FUSE_NATIVE_STREAM_ACTIVE__ = !!(this.useFuseNativeStream && window.__FUSE_NATIVE_BACKEND__);
-      if (!badge) return;
-      if (this.useFuseNativeStream && window.__FUSE_NATIVE_BACKEND__) {
-        badge.textContent = '🟢 Fuse 1.10.0 C Core';
-        badge.style.background = 'rgba(16,185,129,0.25)';
-        badge.style.borderColor = '#34d399';
-        badge.style.color = '#6ee7b7';
-      } else {
-        badge.textContent = '⚡ Fuse 1.10.0 ROMs';
-        badge.style.background = 'rgba(0,210,255,0.18)';
-        badge.style.borderColor = '#38bdf8';
-        badge.style.color = '#7dd3fc';
-      }
-    };
-
     if (badge) {
-      badge.addEventListener('click', () => {
-        if (!window.__FUSE_NATIVE_BACKEND__) {
-          fetch('/status.json').then(r => r.json()).then(d => {
-            if (d && d.running) {
-              window.__FUSE_NATIVE_BACKEND__ = true;
-              this.useFuseNativeStream = !this.useFuseNativeStream;
-              updateCoreBadge();
-            }
-          }).catch(() => {});
-          return;
-        }
-        this.useFuseNativeStream = !this.useFuseNativeStream;
-        updateCoreBadge();
-      });
+      badge.textContent = '🟢 FuseXR 1.10.0';
+      badge.style.background = 'rgba(16,185,129,0.22)';
+      badge.style.borderColor = '#34d399';
+      badge.style.color = '#6ee7b7';
     }
-
-    fetch('/status.json').then(r => r.json()).then(d => {
-      if (d && d.running) {
-        window.__FUSE_NATIVE_BACKEND__ = true;
-        updateCoreBadge();
-      }
-    }).catch(() => {});
-  }
-
-  pollFuseFramePal() {
-    if (!this.useFuseNativeStream || !window.__FUSE_NATIVE_BACKEND__ || this.fuseFetchInFlight) return;
-    this.fuseFetchInFlight = true;
-    fetch('/api/frame.pal')
-      .then(r => (r.ok ? r.arrayBuffer() : null))
-      .then(buf => {
-        if (buf && buf.byteLength === 38400) {
-          const src = new Uint8Array(buf);
-          const fb = this.spectrum.ula.frameBuffer;
-          const ib = this.spectrum.ula.inkBuffer;
-          const pal = this.fusePalColors;
-          // Border index from top-left pixel
-          const borderIdx = (src[0] >> 4) & 0x0f;
-          let dstIdx = 0;
-          for (let i = 0; i < 38400; i++) {
-            const b = src[i];
-            const c0 = pal[(b >> 4) & 0x0f];
-            const c1 = pal[b & 0x0f];
-            fb[dstIdx]     = c0[0]; fb[dstIdx + 1] = c0[1]; fb[dstIdx + 2] = c0[2]; fb[dstIdx + 3] = 255;
-            const isInk0 = ((b >> 4) & 0x0f) !== borderIdx && ((b >> 4) & 0x07) !== 7;
-            ib[dstIdx]     = c0[0]; ib[dstIdx + 1] = c0[1]; ib[dstIdx + 2] = c0[2]; ib[dstIdx + 3] = isInk0 ? 255 : 0;
-            dstIdx += 4;
-
-            fb[dstIdx]     = c1[0]; fb[dstIdx + 1] = c1[1]; fb[dstIdx + 2] = c1[2]; fb[dstIdx + 3] = 255;
-            const isInk1 = (b & 0x0f) !== borderIdx && (b & 0x07) !== 7;
-            ib[dstIdx]     = c1[0]; ib[dstIdx + 1] = c1[1]; ib[dstIdx + 2] = c1[2]; ib[dstIdx + 3] = isInk1 ? 255 : 0;
-            dstIdx += 4;
-          }
-          if (this.ctx2d && this.imageData2d) {
-            this.imageData2d.data.set(fb);
-            this.ctx2d.putImageData(this.imageData2d, 0, 0);
-          }
-          this.frameTexture.needsUpdate = true;
-          if (this.screenRig.pop3DLevel > 0) {
-            this.fgTexture.needsUpdate = true;
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        this.fuseFetchInFlight = false;
-      });
   }
 
   initXR() {
@@ -1400,17 +1316,13 @@ class App {
       this.accumulator = 0.036;
     }
     while (this.accumulator >= frameDuration && steps < 2) {
-      if (this.useFuseNativeStream && window.__FUSE_NATIVE_BACKEND__) {
-        this.pollFuseFramePal();
-      } else {
-        this.spectrum.stepFrame();
-      }
+      this.spectrum.stepFrame();
       this.accumulator -= frameDuration;
       stepped = true;
       steps++;
     }
 
-    if (stepped && !(this.useFuseNativeStream && window.__FUSE_NATIVE_BACKEND__)) {
+    if (stepped) {
       // 2. Update 2D canvas preview for webpage
       if (this.ctx2d && this.imageData2d) {
         this.imageData2d.data.set(this.spectrum.ula.frameBuffer);

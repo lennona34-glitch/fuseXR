@@ -72,6 +72,10 @@ void quest_vr_submit_rgb565( const void *pixels, int width, int height,
 /* Main-thread event polling for remote WebXR / Easy Cheat / Archive commands */
 void quest_vr_poll_events( void );
 
+/* Native Win32 FuseXR Dropdown Menus & Studio Dialogs */
+void quest_vr_populate_win32_menus( void *hWnd );
+int quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd );
+
 #ifdef __cplusplus
 }
 #endif
