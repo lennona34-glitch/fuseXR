@@ -31,10 +31,10 @@
 #include "fuse.h"
 #include "machine.h"
 #include "settings.h"
+#include "ui/quest_vr.h"
 #include "ui/ui.h"
 #include "ui/uidisplay.h"
 #include "ui/scaler/scaler.h"
-#include "win32_fullscreen_layout.h"
 #include "win32internals.h"
 
 /* The size of a 1x1 image in units of
@@ -68,7 +68,7 @@ static RECT invalidated_area;
 struct win32display_dirty_area {
   int x, y, width, height;
 };
-static struct win32display_dirty_area dirty_areas[ DISPLAY_SCREEN_HEIGHT ];
+static struct win32display_dirty_area dirty_areas[ 2 * DISPLAY_SCREEN_HEIGHT ];
 static size_t dirty_area_count = 0;
 
 static const unsigned char rgb_colours[16][3] = {
@@ -98,77 +98,11 @@ static libspectrum_dword bw_colours[16];
 /* The current size of the window (in units of DISPLAY_SCREEN_*) */
 static int win32display_current_size=1;
 
-/* In full screen the scaled image is replicated by an integer factor and
-   centred in the window, which covers the whole monitor */
-static int fullscreen = 0;
-static int fullscreen_area_width, fullscreen_area_height;
-static win32_fullscreen_layout fullscreen_layout;
-
-/* The scaler in use before going full screen, the one picked for full
-   screen and the one to restore when leaving it */
-static scaler_type fullscreen_saved_scaler = SCALER_NUM;
-static scaler_type fullscreen_auto_scaler = SCALER_NUM;
-static scaler_type fullscreen_restore_scaler = SCALER_NUM;
-
 static int init_colours( void );
 static void win32display_add_dirty_area( int x, int y, int width, int height );
 static void win32display_scale_dirty_areas( void );
 static void register_scalers( int force_scaler );
 static void win32display_load_gfx_mode( void );
-static void fullscreen_pick_scaler( void );
-
-static void
-fill_black( HDC dc, int left, int top, int right, int bottom )
-{
-  RECT r;
-
-  if( left >= right || top >= bottom ) return;
-
-  SetRect( &r, left, top, right, bottom );
-  FillRect( dc, &r, GetStockObject( BLACK_BRUSH ) );
-}
-
-/* Paint the full screen image, replicating every scaled pixel into a
-   square of whole screen pixels, and the black borders around it */
-static void
-fullscreen_blit( HDC dest_dc, const RECT *paint )
-{
-  const win32_fullscreen_layout *layout = &fullscreen_layout;
-  int factor = layout->replicate;
-  int left, top, right, bottom;
-  RECT image, area;
-  HDC src_dc;
-  HBITMAP src_bmp;
-
-  SetRect( &image, layout->x, layout->y, layout->x + layout->width,
-           layout->y + layout->height );
-
-  fill_black( dest_dc, paint->left, paint->top, paint->right, image.top );
-  fill_black( dest_dc, paint->left, image.bottom, paint->right,
-              paint->bottom );
-  fill_black( dest_dc, paint->left, image.top, image.left, image.bottom );
-  fill_black( dest_dc, image.right, image.top, paint->right, image.bottom );
-
-  if( !IntersectRect( &area, paint, &image ) ) return;
-
-  /* The scaled pixels covering the area to paint */
-  left = ( area.left - layout->x ) / factor;
-  top = ( area.top - layout->y ) / factor;
-  right = ( area.right - layout->x + factor - 1 ) / factor;
-  bottom = ( area.bottom - layout->y + factor - 1 ) / factor;
-
-  src_dc = CreateCompatibleDC( dest_dc );
-  src_bmp = SelectObject( src_dc, fuse_BMP );
-
-  /* Nearest neighbour, so an integer factor copies pixels exactly */
-  SetStretchBltMode( dest_dc, COLORONCOLOR );
-  StretchBlt( dest_dc, layout->x + left * factor, layout->y + top * factor,
-              ( right - left ) * factor, ( bottom - top ) * factor,
-              src_dc, left, top, right - left, bottom - top, SRCCOPY );
-
-  SelectObject( src_dc, src_bmp );
-  DeleteDC( src_dc );
-}
 
 void
 blit( void )
@@ -187,9 +121,7 @@ blit( void )
   width = ps.rcPaint.right - ps.rcPaint.left;
   height = ps.rcPaint.bottom - ps.rcPaint.top;
 
-  if( fullscreen ) {
-    fullscreen_blit( dest_dc, &ps.rcPaint );
-  } else if( width && height ) {
+  if( width && height ) {
     src_dc = CreateCompatibleDC( dest_dc );
     src_bmp = SelectObject( src_dc, fuse_BMP );
 
@@ -200,6 +132,14 @@ blit( void )
   }
 
   EndPaint( fuse_hWnd, &ps );
+
+  if( win32_pixdata ) {
+    float scale = (float)win32display_current_size / image_scale;
+    int scaled_w = (int)( scale * image_width );
+    int scaled_h = (int)( scale * image_height );
+    quest_vr_submit_bgra32( (const unsigned char *)win32_pixdata,
+                            scaled_w, scaled_h, (int)scaled_pitch );
+  }
 
   display_timing_paint_end();
 }
@@ -218,7 +158,7 @@ win32display_init( void )
 
   black = settings_current.bw_tv ? bw_colours[0] : win32display_colours[0];
 
-  for( y = 0; y < DISPLAY_SCREEN_HEIGHT + 4; y++ )
+  for( y = 0; y < 2 * DISPLAY_SCREEN_HEIGHT + 4; y++ )
     for( x = 0; x < DISPLAY_SCREEN_WIDTH + 3; x++ )
       *(libspectrum_dword*)( rgb_image + y * rgb_pitch + 4 * x ) = black;
 
@@ -324,11 +264,7 @@ uidisplay_init( int width, int height )
   if ( scaler_select_scaler( current_scaler ) )
         scaler_select_scaler( SCALER_NORMAL );
 
-  /* The machine may have changed, and with it the available scalers */
-  if( fullscreen )
-    fullscreen_pick_scaler();
-  else
-    win32display_load_gfx_mode();
+  win32display_load_gfx_mode();
 
   machine_name = libspectrum_machine_name( machine_current->machine );
   win32statusbar_update_machine( machine_name );
@@ -404,18 +340,16 @@ uidisplay_frame_end( void )
 
   win32display_scale_dirty_areas();
 
+  if( win32_pixdata && image_scale > 0 ) {
+    float scale = (float)win32display_current_size / image_scale;
+    int scaled_w = (int)( scale * image_width );
+    int scaled_h = (int)( scale * image_height );
+    quest_vr_submit_bgra32( (const unsigned char *)win32_pixdata,
+                            scaled_w, scaled_h, (int)scaled_pitch );
+  }
+  quest_vr_poll_events();
+
   if( !IsRectEmpty( &invalidated_area ) ) {
-
-    /* Map the scaled image area to where it is shown on the screen */
-    if( fullscreen ) {
-      int factor = fullscreen_layout.replicate;
-
-      SetRect( &invalidated_area,
-               fullscreen_layout.x + invalidated_area.left * factor,
-               fullscreen_layout.y + invalidated_area.top * factor,
-               fullscreen_layout.x + invalidated_area.right * factor,
-               fullscreen_layout.y + invalidated_area.bottom * factor );
-    }
 
     /* Invalidate asynchronously: WM_PAINT will always copy the newest
        completed DIB, while Windows coalesces invalidations if painting
@@ -427,9 +361,6 @@ uidisplay_frame_end( void )
 
     SetRectEmpty( &invalidated_area );
   }
-
-  /* If the user changed the full screen option, apply it now */
-  win32ui_fullscreen_apply();
 
   display_timing_frame_end();
 }
@@ -506,7 +437,7 @@ win32display_add_dirty_area( int x, int y, int width, int height )
     }
   }
 
-  if( dirty_area_count == DISPLAY_SCREEN_HEIGHT ) {
+  if( dirty_area_count == ARRAY_SIZE( dirty_areas ) ) {
     for( i = 0; i < dirty_area_count; i++ )
       merge_dirty_areas( &area, &dirty_areas[i] );
     dirty_area_count = 0;
@@ -526,18 +457,27 @@ win32display_scale_dirty_areas( void )
   display_timing_scaler_begin();
   for( i = 0; i < dirty_area_count; i++ ) {
     const struct win32display_dirty_area *area = &dirty_areas[i];
-    int scaled_x = scale * area->x;
-    int scaled_y = scale * area->y;
+    int ax = area->x, ay = area->y, aw = area->width, ah = area->height;
+    if( scale < 1.0f ) {
+      if( ax & 1 ) { ax--; aw++; }
+      if( ay & 1 ) { ay--; ah++; }
+      if( aw & 1 ) aw++;
+      if( ah & 1 ) ah++;
+      if( ax + aw > image_width ) aw = image_width - ax;
+      if( ay + ah > image_height ) ah = image_height - ay;
+    }
+    int scaled_x = scale * ax;
+    int scaled_y = scale * ay;
 
-    scaler_proc32( &rgb_image[ ( area->y + 2 ) * rgb_pitch +
-                                4 * ( area->x + 1 ) ],
+    scaler_proc32( &rgb_image[ ( ay + 2 ) * rgb_pitch +
+                                4 * ( ax + 1 ) ],
                    rgb_pitch,
                    (unsigned char *)win32_pixdata +
                    scaled_y * scaled_pitch + 4 * scaled_x,
-                   scaled_pitch, area->width, area->height );
+                   scaled_pitch, aw, ah );
 
-    win32display_area( scaled_x, scaled_y, scale * area->width,
-                       scale * area->height );
+    win32display_area( scaled_x, scaled_y, scale * aw,
+                       scale * ah );
   }
   display_timing_scaler_end();
 
@@ -671,126 +611,10 @@ uidisplay_plot16( int x, int y, libspectrum_word data,
   }
 }
 
-/* The size of the image a scaler produces, in units of
-   DISPLAY_ASPECT_WIDTH x DISPLAY_SCREEN_HEIGHT */
-static int
-scaler_size( scaler_type scaler )
-{
-  /* Scaling factors are relative to the image, which is 2x for Timex */
-  return scaler_get_scaling_factor( scaler ) * image_scale + 0.5;
-}
-
-/* The scaler of the current family whose image, replicated by an integer
-   factor, covers the most of the full screen area */
-static scaler_type
-fullscreen_best_scaler( void )
-{
-  scaler_type scalers[ MAX_SCALE ];
-  int sizes[ MAX_SCALE ];
-  int i, max_size;
-
-  max_size = win32_fullscreen_max_size( fullscreen_area_width,
-                                        fullscreen_area_height,
-                                        DISPLAY_ASPECT_WIDTH,
-                                        DISPLAY_SCREEN_HEIGHT );
-
-  for( i = 0; i < MAX_SCALE; i++ ) {
-    scalers[i] = scaler_for_size( current_scaler, i + 1 );
-    sizes[i] = scaler_size( scalers[i] );
-  }
-
-  return scalers[ win32_fullscreen_best_size( max_size, sizes, MAX_SCALE ) ];
-}
-
-/* Fit the image of the current scaler to the full screen area */
-static void
-fullscreen_update_layout( void )
-{
-  win32display_current_size = scaler_size( current_scaler );
-
-  win32_fullscreen_get_layout( fullscreen_area_width, fullscreen_area_height,
-                               DISPLAY_ASPECT_WIDTH, DISPLAY_SCREEN_HEIGHT,
-                               win32display_current_size,
-                               &fullscreen_layout );
-
-  /* Repaint the borders too */
-  InvalidateRect( fuse_hWnd, NULL, FALSE );
-  display_refresh_all();
-}
-
-/* Pick the best scaler of the current family for the full screen area */
-static void
-fullscreen_pick_scaler( void )
-{
-  /* Wait for uidisplay_init() if the image size is not known yet */
-  if( !fullscreen || !image_width ) return;
-
-  scaler_activate_scaler( fullscreen_best_scaler() );
-  fullscreen_auto_scaler = current_scaler;
-
-  fullscreen_update_layout();
-}
-
-void
-win32display_fullscreen_begin( void )
-{
-  fullscreen = 1;
-  fullscreen_saved_scaler = current_scaler;
-  fullscreen_auto_scaler = SCALER_NUM;
-}
-
-/* Called with the size of the window whenever it changes in full screen */
-void
-win32display_fullscreen_resize( int width, int height )
-{
-  /* Same size, e.g. when restoring the minimised window: keep a scaler the
-     user may have picked while in full screen */
-  if( width == fullscreen_area_width && height == fullscreen_area_height &&
-      fullscreen_auto_scaler != SCALER_NUM )
-    return;
-
-  fullscreen_area_width = width;
-  fullscreen_area_height = height;
-
-  fullscreen_pick_scaler();
-}
-
-void
-win32display_fullscreen_end( void )
-{
-  /* Go back to the windowed scaler, unless the user picked another one
-     while in full screen */
-  fullscreen_restore_scaler = current_scaler == fullscreen_auto_scaler ?
-                              fullscreen_saved_scaler : current_scaler;
-  fullscreen = 0;
-}
-
-/* Called once the window has its windowed style and placement back */
-void
-win32display_fullscreen_restore( void )
-{
-  scaler_type scaler = fullscreen_restore_scaler;
-
-  /* The saved scaler may belong to the previous machine */
-  if( scaler == SCALER_NUM || !scaler_is_supported( scaler ) )
-    scaler = current_scaler;
-  fullscreen_restore_scaler = SCALER_NUM;
-
-  /* Selecting the scaler resizes the window to fit it */
-  scaler_select_scaler( scaler );
-
-  InvalidateRect( fuse_hWnd, NULL, FALSE );
-}
-
 static void
 win32display_load_gfx_mode( void )
 {
   float scale;
-
-  if( fullscreen ) {
-    fullscreen_update_layout();
-    return;
-  }
 
   scale = scaler_get_scaling_factor( current_scaler );
   win32display_drawing_area_resize( scale * image_width, scale * image_height, 0 );

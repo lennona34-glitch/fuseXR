@@ -72,6 +72,8 @@ static GSList *ports = NULL;
 static const char * const page_event_string = "page",
   * const unpage_event_string = "unpage";
 
+static void free_peripheral( gpointer data, gpointer user_data );
+
 /* Place one port response in the list of currently active ones */
 static void
 port_register( periph_type type, const periph_port_t *port )
@@ -138,8 +140,11 @@ periph_activate_type( periph_type type, int active )
       port_register( type, ptr );
   } else {
     GSList *found;
-    while( ( found = g_slist_find_custom( ports, GINT_TO_POINTER( type ), find_by_type ) ) != NULL )
-      ports = g_slist_remove( ports, found->data );
+    while( ( found = g_slist_find_custom( ports, GINT_TO_POINTER( type ), find_by_type ) ) != NULL ) {
+      gpointer data = found->data;
+      ports = g_slist_remove( ports, data );
+      free_peripheral( data, NULL );
+    }
   }
 
   return 1;

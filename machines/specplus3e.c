@@ -32,7 +32,7 @@
 #include "specplus3.h"
 #include "ui/ui.h"
 
-static int specplus3e_reset( int hard_reset, libspectrum_snap *snap );
+static int specplus3e_reset( int hard_reset );
 extern upd_fdc *specplus3_fdc;
 
 int
@@ -59,21 +59,21 @@ specplus3e_init( fuse_machine_info *machine )
 }
 
 static int
-specplus3e_reset( int hard_reset, libspectrum_snap *snap )
+specplus3e_reset( int hard_reset )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_plus3e_0,
-                            settings_default.rom_plus3e_0, 0x4000, snap );
+                            settings_default.rom_plus3e_0, 0x4000 );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_plus3e_1,
-                            settings_default.rom_plus3e_1, 0x4000, snap );
+                            settings_default.rom_plus3e_1, 0x4000 );
   if( error ) return error;
   error = machine_load_rom( 2, settings_current.rom_plus3e_2,
-                            settings_default.rom_plus3e_2, 0x4000, snap );
+                            settings_default.rom_plus3e_2, 0x4000 );
   if( error ) return error;
   error = machine_load_rom( 3, settings_current.rom_plus3e_3,
-                            settings_default.rom_plus3e_3, 0x4000, snap );
+                            settings_default.rom_plus3e_3, 0x4000 );
   if( error ) return error;
 
   error = specplus3_plus2a_common_reset( hard_reset );

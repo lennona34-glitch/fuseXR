@@ -18,6 +18,7 @@
 #include "machine.h"
 #include "settings.h"
 #include "ui/display_timing.h"
+#include "ui/quest_vr.h"
 #include "ui/ui.h"
 #include "ui/scaler/scaler.h"
 #include "ui/uidisplay.h"
@@ -57,7 +58,7 @@ static libspectrum_byte sdl2display_force_full_refresh = 1;
 struct sdl2display_dirty_area {
   int x, y, width, height;
 };
-static struct sdl2display_dirty_area dirty_areas[ DISPLAY_SCREEN_HEIGHT ];
+static struct sdl2display_dirty_area dirty_areas[ 2 * DISPLAY_SCREEN_HEIGHT ];
 static size_t dirty_area_count = 0;
 
 static int image_width;
@@ -296,7 +297,7 @@ sdl2display_add_dirty_area( int x, int y, int width, int height )
     }
   }
 
-  if( dirty_area_count == DISPLAY_SCREEN_HEIGHT ) {
+  if( dirty_area_count == ARRAY_SIZE( dirty_areas ) ) {
     for( i = 0; i < dirty_area_count; i++ )
       merge_dirty_areas( &area, &dirty_areas[i] );
     dirty_area_count = 0;
@@ -969,6 +970,13 @@ uidisplay_frame_end( void )
   display_timing_presentation_begin();
   SDL_RenderPresent( sdl2_renderer );
   display_timing_presentation_end();
+
+  if( scaled_screen && scaled_screen->pixels ) {
+    quest_vr_submit_rgb565( scaled_screen->pixels,
+                            scaled_screen->w,
+                            scaled_screen->h,
+                            scaled_screen->pitch );
+  }
 
   sdl2display_force_full_refresh = 0;
 

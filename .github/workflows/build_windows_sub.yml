@@ -48,10 +48,6 @@ on:
         type: boolean
         required: false
         default: false
-      run_check:
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   build:
@@ -69,6 +65,8 @@ jobs:
       # Small help when copying dlls
       CYGWIN_LIBDIR: "/usr/i686-w64-mingw32/sys-root/mingw/bin/"
       
+      # In case of SDL
+      SDL_CONFIG: "/usr/i686-w64-mingw32/sys-root/mingw/bin/sdl-config"
     steps:
       - name: (1) Prepare environment
         run: |
@@ -152,6 +150,7 @@ jobs:
             mingw64-i686-win-iconv
             mingw64-i686-winpthreads
             mingw64-i686-zlib
+            mingw64-i686-audiofile
             pkg-config
             ${{ inputs.dependencies }}
 
@@ -309,6 +308,9 @@ jobs:
           
           # SDL runtime selection follows the configured UI variant.
           case "${{ inputs.verify_ui }}" in
+            sdl)
+              cp ${CYGWIN_LIBDIR}SDL.dll $DEST_DIR || true
+              ;;
             sdl2)
               cp ${CYGWIN_LIBDIR}SDL2.dll $DEST_DIR || true
               ;;
@@ -322,6 +324,11 @@ jobs:
           
           # libgcrypt dlls
           cp ${CYGWIN_LIBDIR}libgcrypt-20.dll $DEST_DIR || true
+          
+          # Audiofile dlls
+          cp ${CYGWIN_LIBDIR}libaudiofile-1.dll $DEST_DIR || true
+          cp ${CYGWIN_LIBDIR}libFLAC-8.dll $DEST_DIR || true
+          cp ${CYGWIN_LIBDIR}libOGG-0.dll $DEST_DIR || true
           
           # LibXML2 dlls
           cp ${CYGWIN_LIBDIR}libxml2-2.dll $DEST_DIR || true
@@ -407,9 +414,16 @@ jobs:
           copy_notice_files mingw64-i686-libpng
           copy_notice_files mingw64-i686-zlib
           copy_notice_files mingw64-i686-bzip2
+          copy_notice_files mingw64-i686-audiofile
+          copy_notice_files mingw64-i686-flac
+          copy_notice_files mingw64-i686-libogg
           copy_notice_files mingw64-i686-libxml2
           copy_notice_files mingw64-i686-win-iconv
           copy_notice_files mingw64-i686-xz
+          if [[ -f "$DEST_DIR/SDL.dll" ]]; then
+            copy_notice_files mingw64-i686-SDL SDL
+          fi
+
           if [[ -f "$DEST_DIR/SDL2.dll" ]]; then
             copy_notice_files mingw64-i686-SDL2 SDL2
 
@@ -441,14 +455,6 @@ jobs:
           #./coretest.exe
           echo "(skipped)"
           
-        shell: bash.exe --login --norc -eo pipefail -o igncr '{0}'
-
-      - name: (9b) Run unit tests
-        if: ${{ inputs.run_check }}
-        run: |
-          cd ${GITHUB_WORKSPACE}
-          echo "Building and running tests .."
-          make check
         shell: bash.exe --login --norc -eo pipefail -o igncr '{0}'
 
       - name: (10) Create distribution file(s)

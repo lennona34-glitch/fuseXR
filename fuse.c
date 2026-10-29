@@ -41,9 +41,9 @@
    bootstrapping by redefining main. As we now allow SDL joystick code to be
    used in the GTK and Xlib UIs we need to also do the magic when that code is
    in use, feel free to look away for the next line */
-#if defined UI_SDL2 || (defined USE_JOYSTICK && (defined UI_X || defined UI_GTK) )
+#if defined UI_SDL || defined UI_SDL2 || (defined USE_JOYSTICK && (defined UI_X || defined UI_GTK) )
 #include <SDL.h>		/* Needed on MacOS X and Windows */
-#endif /* SDL 2 UI or joystick support */
+#endif /* #if defined UI_SDL || defined UI_SDL2 || (defined USE_JOYSTICK && (defined UI_X || defined UI_GTK) ) */
 
 #ifdef GEKKO
 /* #include <fat.h>
@@ -108,6 +108,7 @@
 #include "spectrum.h"
 #include "tape.h"
 #include "timer/timer.h"
+#include "ui/quest_vr.h"
 #include "ui/scaler/scaler.h"
 #include "ui/ui.h"
 #include "ui/uimedia.h"
@@ -182,6 +183,9 @@ static int fuse_end(void);
 #ifdef UI_WIN32
 int fuse_main(int argc, char **argv)
 #else
+#if !defined(UI_SDL) && !defined(UI_SDL2)
+#undef main
+#endif
 int main(int argc, char **argv)
 #endif
 {
@@ -452,6 +456,7 @@ static int fuse_init(int argc, char **argv)
 
   fuse_emulation_paused = 0;
   movie_init();
+  quest_vr_init();
 
 #ifdef FUSE_TEST_BUILD
   /* Show warning in case of test build */
@@ -577,7 +582,6 @@ static void fuse_show_help( void )
    "\nDevelopment automation options:\n\n"
    "--automation-output <directory>       Write one-shot result artifacts here.\n"
    "--automation-frames <count>           Stop after completed machine frames.\n"
-   "--automation-sample-tstates <n>       Sample PC n T-states after the final frame (probe only).\n"
    "--automation-max-frames <count>       Deadline for a bounded run.\n"
    "--automation-until-rzx-end            Stop when RZX playback ends.\n"
    "--automation-success-pc <address>     Stop successfully at this PC.\n"
@@ -597,10 +601,10 @@ static void fuse_show_help( void )
    "--kempston             Emulate the Kempston joystick on QAOP<space>.\n"
    "--loading-sound        Emulate the sound of tapes loading.\n"
    "--sound                Produce sound.\n"
+   "--sound-force-8bit     Generate 8-bit sound even if 16-bit is available.\n"
    "--slt                  Turn SLT traps on.\n"
    "--traps                Turn tape traps on.\n\n"
    "Other options:\n\n"
-   "--fbmode <mode>        Which mode should be used for FB?\n"
    "--help                 This information.\n"
    "--machine <type>       Which machine should be emulated?\n"
    "--playback <filename>  Play back RZX file <filename>.\n"
@@ -608,6 +612,7 @@ static void fuse_show_help( void )
    "--separation <type>    Use ACB/ABC stereo for the AY-3-8912 sound chip.\n"
    "--snapshot <filename>  Load snapshot <filename>.\n"
    "--speed <percentage>   How fast should emulation run?\n"
+   "--fb-mode <mode>       Which mode should be used for FB?\n"
    "--tape <filename>      Open tape file <filename>.\n"
    "--version              Print version number and exit.\n"
    "\n"
@@ -1068,6 +1073,7 @@ do_start_files( start_files_t *start_files )
 /* Tidy-up function called at end of emulation */
 static int fuse_end(void)
 {
+  quest_vr_end();
   movie_stop();		/* stop movie recording */
 
   startup_manager_run_end();

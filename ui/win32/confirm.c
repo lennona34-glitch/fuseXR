@@ -30,6 +30,7 @@
 #include "settings.h"
 #include "ui/ui.h"
 #include "ui/ui_internals.h"
+#include "ui/quest_vr.h"
 
 int
 win32ui_confirm( const char *string )
@@ -39,7 +40,7 @@ win32ui_confirm( const char *string )
 
   /* Return value isn't an error code, but signifies whether to undertake
      the action */
-  if( !settings_current.confirm_actions ) return 1;
+  if( !settings_current.confirm_actions || quest_vr_is_running() ) return 1;
 
   fuse_emulation_pause();
 
@@ -60,7 +61,7 @@ ui_confirm_save_specific( const char *message )
   ui_confirm_save_t confirm;
   int result;
 
-  if( !settings_current.confirm_actions ) return UI_CONFIRM_SAVE_DONTSAVE;
+  if( !settings_current.confirm_actions || quest_vr_is_running() ) return UI_CONFIRM_SAVE_DONTSAVE;
 
   fuse_emulation_pause();
 

@@ -36,7 +36,7 @@
 #include "spec48.h"
 #include "spectrum.h"
 
-static int spec48_ntsc_reset( int hard_reset, libspectrum_snap *snap );
+static int spec48_ntsc_reset( int hard_reset );
 
 int spec48_ntsc_init( fuse_machine_info *machine )
 {
@@ -62,12 +62,12 @@ int spec48_ntsc_init( fuse_machine_info *machine )
 }
 
 static int
-spec48_ntsc_reset( int hard_reset, libspectrum_snap *snap )
+spec48_ntsc_reset( int hard_reset )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_48,
-                            settings_default.rom_48, 0x4000, snap );
+                            settings_default.rom_48, 0x4000 );
   if( error ) return error;
 
   periph_clear();

@@ -82,6 +82,11 @@ MENU_CALLBACK( menu_options_filteroptions );
 #endif
 
 MENU_CALLBACK( menu_options_fullscreen );
+MENU_CALLBACK( menu_options_questvr_toggle );
+MENU_CALLBACK( menu_options_questvr_open );
+MENU_CALLBACK( menu_options_questvr_copy_url );
+MENU_CALLBACK_WITH_ACTION( menu_options_questvr_mode );
+MENU_DETAIL( menu_questvr_detail );
 MENU_CALLBACK( menu_options_save );
 
 MENU_CALLBACK( menu_machine_profiler_start );

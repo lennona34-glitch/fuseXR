@@ -39,10 +39,7 @@ static LPDIRECTSOUNDBUFFER lpDSBuffer; /* sound buffer */
 
 static DWORD nextpos; /* next position in circular buffer */
 
-static int channels; /* 1 for mono, 2 for stereo */
-
-/* How far ahead of the play cursor to keep writing, in emulated frames */
-#define QUEUED_FRAMES 6
+static int sixteenbit;
 
 int
 sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
@@ -85,10 +82,15 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
   memset( &pcmwf, 0, sizeof( WAVEFORMATEX ) );
 
   pcmwf.cbSize = 0;
-  pcmwf.wBitsPerSample = 16;
-  channels = *stereoptr ? 2 : 1;
-  pcmwf.nChannels = channels;
-  pcmwf.nBlockAlign = pcmwf.nChannels * 2;
+  if( settings_current.sound_force_8bit ) {
+    pcmwf.wBitsPerSample = 8;
+    sixteenbit = 0;
+  } else {
+    pcmwf.wBitsPerSample = 16;
+    sixteenbit = 1;
+  }
+  pcmwf.nChannels = *stereoptr ? 2 : 1;
+  pcmwf.nBlockAlign = pcmwf.nChannels * ( sixteenbit ? 2 : 1 );
   pcmwf.nSamplesPerSec = *freqptr;
 
   pcmwf.nAvgBytesPerSec = pcmwf.nSamplesPerSec * pcmwf.nBlockAlign;
@@ -156,14 +158,9 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
   DWORD length1, length2;
   DWORD playcursor;
   long cursordiff;
-  long queued_bytes;
 
-  len *= 2;
-
-  /* The core now hands over audio in parts of a frame, so measure how much
-     to keep queued in whole frames (as when each call carried a full frame)
-     rather than in multiples of this call's length */
-  queued_bytes = (long)sound_framesiz * channels * 2 * QUEUED_FRAMES;
+  if( sixteenbit )
+    len *= 2;
 
   while( len ) {
     while( 1 ) {
@@ -174,7 +171,7 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
       if( playcursor > nextpos )
         cursordiff += MAX_AUDIO_BUFFER;
 
-      if( cursordiff < queued_bytes )
+      if( cursordiff < len * 6 )
         break;
 
       Sleep(10);
@@ -189,13 +186,17 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
 
     /* write to the first part of buffer */
     for( i1 = 0; i1 < length1 && len > 0; i1++ ) {
-      if( lsb ) {
-        ucbuffer1[ i1 ] = *data & 0xff;
+      if( sixteenbit ) {
+        if( lsb ) {
+          ucbuffer1[ i1 ] = *data & 0xff;
+        } else {
+          ucbuffer1[ i1 ] = *data >> 8;
+          data++;
+        }
+        lsb = !lsb;
       } else {
-        ucbuffer1[ i1 ] = *data >> 8;
-        data++;
+        ucbuffer1[ i1 ] = ( ( *data++ ) >> 8 ) ^ 0x80;
       }
-      lsb = !lsb;
       nextpos++;
       len--;
     }
@@ -203,13 +204,17 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
     if( ucbuffer2 ) {
       /* write to the second part of buffer */
       for( i2 = 0; i2 < length2 && len > 0; i2++ ) {
-        if( lsb ) {
-          ucbuffer2[ i2 ] = *data & 0xff;
+        if( sixteenbit ) {
+          if( lsb ) {
+            ucbuffer2[ i2 ] = *data & 0xff;
+          } else {
+            ucbuffer2[ i2 ] = *data >> 8;
+            data++;
+          }
+          lsb = !lsb;
         } else {
-          ucbuffer2[ i2 ] = *data >> 8;
-          data++;
+          ucbuffer2[ i2 ] = ( ( *data++ ) >> 8 ) ^ 0x80;
         }
-        lsb = !lsb;
         nextpos++;
         len--;
       }

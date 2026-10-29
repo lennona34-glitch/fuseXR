@@ -22,10 +22,18 @@
 
 !define FUSE_VERSION "@PACKAGE_VERSION@" ; could have letters like -RC1
 !define FUSE_FULL_VERSION "@FUSE_FULL_VERSION@" ; must have four numeric tokens
-!define DISPLAY_NAME "the Free Unix Spectrum Emulator (Fuse) ${FUSE_VERSION}"
+!define FUSE_UI "@UI@"
+!if "${FUSE_UI}" == "win32"
+  !define FUSE_VARIANT "Fuse"
+  !define FUSE_UI_SUFFIX ""
+!else
+  !define FUSE_VARIANT "Fuse (${FUSE_UI})"
+  !define FUSE_UI_SUFFIX " (${FUSE_UI})"
+!endif
+!define DISPLAY_NAME "the Free Unix Spectrum Emulator (${FUSE_VARIANT}) ${FUSE_VERSION}"
 !define SETUP_FILENAME "@PACKAGE@-${FUSE_VERSION}-@UI@-setup"
 !define SETUP_FILE "${SETUP_FILENAME}.exe"
-!define HKLM_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Fuse"
+!define HKLM_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${FUSE_VARIANT}"
 !define PROG_ID "Fuse.Files.1"
 
 ;Include Modern UI
@@ -40,7 +48,7 @@ Name "${DISPLAY_NAME}"
 outFile "${SETUP_FILE}"
 Caption "${DISPLAY_NAME}"
  
-installDir "$PROGRAMFILES\Fuse"
+installDir "$PROGRAMFILES\${FUSE_VARIANT}"
 
 ; [Additional Installer Settings ]
 XPStyle on
@@ -283,12 +291,12 @@ sectionEnd
 section "Start Menu and Desktop links" SecShortcuts
 
     DetailPrint "Creating Shortcuts..."
-    CreateDirectory "$SMPROGRAMS\Fuse"
-    CreateShortCut "$SMPROGRAMS\Fuse\Fuse.lnk" "$INSTDIR\fuse.exe"
-    CreateShortCut "$SMPROGRAMS\Fuse\Manual.lnk" "$INSTDIR\fuse.html"
-    CreateShortCut "$SMPROGRAMS\Fuse\Readme.lnk" "$INSTDIR\README.txt"
-    CreateShortCut "$SMPROGRAMS\Fuse\Uninstall.lnk" "$INSTDIR\uninstall.exe"
-    CreateShortCut "$DESKTOP\Fuse.lnk" "$INSTDIR\fuse.exe"
+    CreateDirectory "$SMPROGRAMS\${FUSE_VARIANT}"
+    CreateShortCut "$SMPROGRAMS\${FUSE_VARIANT}\Fuse${FUSE_UI_SUFFIX}.lnk" "$INSTDIR\fuse.exe"
+    CreateShortCut "$SMPROGRAMS\${FUSE_VARIANT}\Manual.lnk" "$INSTDIR\fuse.html"
+    CreateShortCut "$SMPROGRAMS\${FUSE_VARIANT}\Readme.lnk" "$INSTDIR\README.txt"
+    CreateShortCut "$SMPROGRAMS\${FUSE_VARIANT}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+    CreateShortCut "$DESKTOP\Fuse${FUSE_UI_SUFFIX}.lnk" "$INSTDIR\fuse.exe"
 
 sectionEnd
 
@@ -348,12 +356,12 @@ section "uninstall"
 	
     ; Delete the links
     DetailPrint "Deleting Shortcuts..."
-    Delete "$SMPROGRAMS\Fuse\Fuse.lnk"
-    Delete "$SMPROGRAMS\Fuse\Manual.lnk"
-    Delete "$SMPROGRAMS\Fuse\Readme.lnk"
-    Delete "$SMPROGRAMS\Fuse\Uninstall.lnk"
-    RMDir  "$SMPROGRAMS\Fuse"
-    Delete "$DESKTOP\Fuse.lnk"
+    Delete "$SMPROGRAMS\${FUSE_VARIANT}\Fuse${FUSE_UI_SUFFIX}.lnk"
+    Delete "$SMPROGRAMS\${FUSE_VARIANT}\Manual.lnk"
+    Delete "$SMPROGRAMS\${FUSE_VARIANT}\Readme.lnk"
+    Delete "$SMPROGRAMS\${FUSE_VARIANT}\Uninstall.lnk"
+    RMDir  "$SMPROGRAMS\${FUSE_VARIANT}"
+    Delete "$DESKTOP\Fuse${FUSE_UI_SUFFIX}.lnk"
 
     ; Installation files
     DetailPrint "Deleting Files..."
@@ -381,7 +389,7 @@ section "uninstall"
     DetailPrint "Deleting Uninstaller..."
     Delete "$INSTDIR\uninstall.exe"
     RMDir "$INSTDIR"
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Fuse"
+    DeleteRegKey HKLM "${HKLM_REG_KEY}"
 
 sectionEnd
 

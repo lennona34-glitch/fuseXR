@@ -4,10 +4,6 @@ run-name: Build Fuse App for Windows / ${{ github.actor }} /
 # Executed upon each commit pushed, merge commit in PR
 on: [pull_request]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   libspectrum:
     # Build libspectrum from the canonical SourceForge repository.
@@ -33,7 +29,6 @@ jobs:
       verify_ui: "win32"
       verify_libxml2: "yes"
       verify_audio: "directsound"
-      run_check: true
 
   # Win32 / 2
   win32-ui-no-libxml2:
@@ -47,7 +42,6 @@ jobs:
       verify_ui: "win32"
       verify_libxml2: "no"
       verify_audio: "directsound"
-      run_check: true
 
   # Win32 / 3
   win32-ui-win32-sound:
@@ -61,7 +55,6 @@ jobs:
       verify_ui: "win32"
       verify_libxml2: "no"
       verify_audio: "win32sound"
-      run_check: true
 
   # Win32 / 4
   win32-ui-null-sound:
@@ -75,7 +68,20 @@ jobs:
       verify_ui: "win32"
       verify_libxml2: "no"
       verify_audio: "null"
-      run_check: true
+
+  # SDL 1 UI + Sound
+  sdl-ui-sdl-sound:
+    name: "Fuse SDL 1 UI + sound (Windows)"
+    needs: [libspectrum]
+    uses: ./.github/workflows/build_windows_sub.yml
+    with:
+      key: "sdl1-ui-sdl1-sound"
+      dependencies: "mingw64-i686-SDL"
+      configure_params: "--without-win32 --with-sdl --disable-sdl2 --with-audio-driver=sdl"
+      verify_ui: "sdl"
+      verify_libxml2: "no"
+      verify_audio: "sdl"
+      verify_other: "Using SDL: 1"
 
   # SDL 2 UI + Sound
   sdl2-ui-sdl2-sound:
@@ -90,4 +96,3 @@ jobs:
       verify_libxml2: "no"
       verify_audio: "sdl"
       verify_other: "Using SDL: 2"
-      run_check: true

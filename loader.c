@@ -34,7 +34,6 @@
 #include "z80/z80.h"
 
 static int successive_reads = 0;
-static unsigned non_loader_frames = 0;
 static libspectrum_signed_dword last_tstates_read = -100000;
 static libspectrum_byte last_b_read = 0x00;
 static int length_known1 = 0, length_known2 = 0;
@@ -56,14 +55,10 @@ size_t acceleration_pc;
 #define LOADER_DETECTION_READS 10
 #define MOVIELOAD_DETECTION_READS 128
 #define LOADER_STOP_NON_EAR_READS 10
-/* Five seconds at the Spectrum's nominal frame rate. Moonlighter executes
-   BASIC and scans the keyboard for over three seconds between ROM loads. */
-#define LOADER_STOP_GRACE_FRAMES 250
 
 void
 loader_frame( libspectrum_dword frame_length )
 {
-  if( non_loader_frames < LOADER_STOP_GRACE_FRAMES ) non_loader_frames++;
   if( last_tstates_read > -100000 ) {
     last_tstates_read -= frame_length;
   }
@@ -72,7 +67,6 @@ loader_frame( libspectrum_dword frame_length )
 void
 loader_tape_play( void )
 {
-  non_loader_frames = 0;
   successive_reads = 0;
   acceleration_mode = ACCELERATION_MODE_NONE;
 }
@@ -206,26 +200,15 @@ loader_detect_while_playing( libspectrum_dword tstates_diff,
                              libspectrum_byte b_diff )
 {
   if( loader_read_detected( z80.pc.w ) ||
-      ( !ula_read_is_keyboard_scan( z80.pc.w ) &&
-        loader_counter_read_is_plausible( tstates_diff, b_diff ) ) ) {
+      loader_counter_read_is_plausible( tstates_diff, b_diff ) ) {
     successive_reads = 0;
-    non_loader_frames = 0;
     return;
   }
 
-  /* Keyboard scans can change B by -1 between their first two rows, which
-     otherwise looks like a loader counter and resets successive_reads on
-     every scan. Exclude their instruction pattern from the timing fallback.
-     Keyboard-only activity also occurs between genuine loads: Moonlighter
-     executes BASIC for several seconds before resuming its ROM loader.
-     Give keyboard scans a bounded grace period after loading activity;
-     other non-loader reads still use the normal consecutive-read limit. */
-  if( successive_reads < LOADER_STOP_NON_EAR_READS ) successive_reads++;
-  if( successive_reads >= LOADER_STOP_NON_EAR_READS &&
-      ( !ula_read_is_keyboard_scan( z80.pc.w ) ||
-        non_loader_frames >= LOADER_STOP_GRACE_FRAMES ) ) {
-    tape_stop();
-  }
+  /* A loader may be interrupted by an eight-read keyboard scan. Do not stop
+     the tape unless non-EAR reads persist beyond that interrupt. */
+  successive_reads++;
+  if( successive_reads >= LOADER_STOP_NON_EAR_READS ) tape_stop();
 }
 
 static void

@@ -39,7 +39,7 @@
 #include "tc2068.h"
 #include "ui/ui.h"
 
-static int ts2068_reset( int hard_reset, libspectrum_snap *snap );
+static int ts2068_reset( int hard_reset );
 
 int
 ts2068_init( fuse_machine_info *machine )
@@ -65,16 +65,16 @@ ts2068_init( fuse_machine_info *machine )
 }
 
 static int
-ts2068_reset( int hard_reset, libspectrum_snap *snap )
+ts2068_reset( int hard_reset )
 {
   size_t i, j;
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_ts2068_0,
-                            settings_default.rom_ts2068_0, 0x4000, snap );
+                            settings_default.rom_ts2068_0, 0x4000 );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_ts2068_1,
-                            settings_default.rom_ts2068_1, 0x2000, snap );
+                            settings_default.rom_ts2068_1, 0x2000 );
   if( error ) return error;
 
   /* 0x0000: ROM 0 */

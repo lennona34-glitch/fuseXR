@@ -195,7 +195,7 @@ utils_open_loaded_file( utils_file *file, int autoload,
     if( !( machine_current->capabilities &
 	   LIBSPECTRUM_MACHINE_CAPABILITY_TRDOS_DISK ) &&
         !periph_is_active( PERIPH_TYPE_BETA128 ) ) {
-      error = machine_select( LIBSPECTRUM_MACHINE_SCORP ); if( error ) break;
+      error = machine_select( LIBSPECTRUM_MACHINE_PENT ); if( error ) break;
     }
 
     /* Check that we actually got a Beta capable machine to insert the disk */
@@ -630,6 +630,18 @@ utils_read_screen( const char *filename, utils_file *screen )
   }
 
   return 0;
+}
+
+char*
+utils_safe_strdup( const char *src )
+{
+  char *dest = NULL;
+  if( src ) {
+    size_t length = strlen( src ) + 1;
+    dest = libspectrum_new( char, length );
+    memcpy( dest, src, length );
+  }
+  return dest;
 }
 
 int

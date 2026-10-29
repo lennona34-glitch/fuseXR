@@ -1,0 +1,43 @@
+v1.5 (24.08.2021)
+*Fixed an error when selecting the quit key.
+
+v1.4 (14.08.2021)
+*Corrected spelling typos. (thx Lethargeek)
+*Fixed softlock when jumping next to a witch. (thx Yuri Utiansky)
+*Fixed softlock with the inventory in the house when Pogie is absent. (thx Yuri Utiansky)
+*Fixed flickering of items when attacking a dragon. (thx Yuri Utiansky)
+*Fixed logic with the need to help all friends in the final of the game. (thx Yuri Utiansky)
+*Removed foreground artifacts in the forest. (thx Yuri Utiansky)
+*Fixed the logic when interacting with the scarecrow. (thx Yuri Utiansky)
+*Removed the overlay of the coin on the magic wand. (thx Yuri Utiansky)
+*A small code optimization.
+
+v1.3.1 (24.07.2021)
+*Fixed sound menu bug. (thx c55fun)
+
+v1.3 (21.07.2021)
++An extended finalcut soundtrack has been added. (thx MmcM)
++Added bats to the upper tiers of the forest.
+*Fixed visual bugs in the forest.
+*When taking a coin, the character's initial dialogue was skipped. (thx TwoSpacesSG)
+*Impossible to jump behind the witch in the castle. (thx Truf)
+
+v1.2 (16.07.2021)
+*The number of coins was not reset after restarting the game.
+
+v1.1 (08.07.2021)
++Extended memory support has been added.
++Added taking a coin by SELECT key instead of tapping.
+*Corrected spelling typos. (thx Philip Oliver)
+*Pirate sprite updated. (thx Jarrod Bentley)
+*Dizzy doesn't fall through the water at the castle. (thx Lethargeek)
+*Fixed a bug with disappearing coin. (thx EdHell and Neko-san)
+*Fixed flickering column in the chateau (thx CityAceE)
+*The dread castle graphics have been updated. (thx Moroz1999)
+*Found a lost epaulettes at the guard. (thx Jarrod Bentley)
+*The ticking heart is not lost now. (thx Faddy)
+*Fixed flickering inventory and coins when changing rooms. (thx Evgeny Muchkin)
+*Fixed fatal bug with active objects when interacting from the menu. (thx TwoSpacesSG)
+
+v1.0 (18.12.2020)
+A hastily produced release.

@@ -15,9 +15,11 @@
 #include "fuse.h"
 #include "menu.h"
 #include "settings.h"
+#include "tape.h"
 #include "ui/display_timing.h"
 #include "ui/ui.h"
 #include "ui/uidisplay.h"
+#include "utils.h"
 #include "sdl2_display.h"
 #include "sdl2_joystick.h"
 #include "sdl2_keyboard.h"
@@ -100,6 +102,7 @@ ui_init( int *argc, char ***argv )
   sdl2ui_default_cursor = SDL_GetDefaultCursor();
 
   sdl2keyboard_init();
+  SDL_EventState( SDL_DROPFILE, SDL_ENABLE );
   ui_mouse_present = 1;
 
   return 0;
@@ -147,6 +150,20 @@ ui_event( void )
       sdl2joystick_hatmove( &event.jhat );
       break;
 #endif
+
+    case SDL_DROPFILE:
+      if( event.drop.file ) {
+        fuse_emulation_pause();
+        if( settings_current.auto_load ) {
+          utils_open_file( event.drop.file, tape_can_autoload(), NULL );
+        } else {
+          utils_open_file( event.drop.file, 0, NULL );
+        }
+        display_refresh_all();
+        fuse_emulation_unpause();
+        SDL_free( event.drop.file );
+      }
+      break;
 
     case SDL_QUIT:
       fuse_emulation_pause();

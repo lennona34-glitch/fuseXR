@@ -38,7 +38,7 @@
 #include "spec48.h"
 #include "tc2068.h"
 
-static int tc2048_reset( int hard_reset, libspectrum_snap *snap );
+static int tc2048_reset( int hard_reset );
 
 int
 tc2048_port_from_ula( libspectrum_word port )
@@ -72,13 +72,13 @@ int tc2048_init( fuse_machine_info *machine )
 }
 
 static int
-tc2048_reset( int hard_reset, libspectrum_snap *snap )
+tc2048_reset( int hard_reset )
 {
   size_t i, j;
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_tc2048,
-                            settings_default.rom_tc2048, 0x4000, snap );
+                            settings_default.rom_tc2048, 0x4000 );
   if( error ) return error;
 
   /* 0x0000: ROM 0 */

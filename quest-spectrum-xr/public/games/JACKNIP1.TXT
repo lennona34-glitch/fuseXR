@@ -1,0 +1,39 @@
+ JACK THE NIPPER 
+ Gremlin 1986 
+
+ CONTROLS : Keyboard, Kempston, Cursor
+ ----------------------------------------------------------------------
+ AIM : Jack the Nipper is the epitome of naughtiness - the naughtiest
+ kid in town. Now he's trying to set a record for naughtiness. Can you
+ ensure that he does it without getting busted?
+ 
+ GAMEPLAY : JTN has a fair amount of arcade adventure elements - to
+ bump up the Naughtyometer's rating you'll need to perform certain
+ tasks. There are about twenty of these, but they're not that easy to
+ do; quite apart from working out what to do and how to do it, the
+ various other characters around the town will do their best to hinder
+ you. Parents and shopkeepers will do their best to catch Jack, and
+ ghosts will also pester him - although these can be exorcised with a
+ well-aimed peashooter shot.
+
+  If Jack collides with another character, he'll get a thrashing which
+ will increase his nappy rash rating (shown at the bottom right of the
+ screen). Too much rash and he'll be "self-spanked off" (a la Andrew
+ Beckwith...) and lose a life. 
+
+ COMMENTS : "An excellent game".
+ RATING : 93% (CRASH #30, July 1986)
+
+ NOW : An interesting, and graphically neat, arcade puzzle game.
+ ----------------------------------------------------------------------
+ KEYS : Left		- Z
+	Right		- X
+	Up		- O
+	Down		- K
+	Fire		- 0
+
+	Enter door	- ENTER
+	Jump		- Up + Fire
+	Shoot		- Direction + Fire
+	Pause 		- H (toggles)
+	Quit		- Q

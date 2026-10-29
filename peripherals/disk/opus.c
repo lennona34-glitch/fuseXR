@@ -77,7 +77,6 @@ static void opus_reset( int hard_reset );
 static void opus_memory_map( void );
 static void opus_enabled_snapshot( libspectrum_snap *snap );
 static void opus_from_snapshot( libspectrum_snap *snap );
-static void opus_snapshot_roms( libspectrum_snap *snap );
 static void opus_to_snapshot( libspectrum_snap *snap );
 static void opus_activate( void );
 
@@ -88,7 +87,6 @@ static module_info_t opus_module_info = {
   /* .snapshot_enabled = */ opus_enabled_snapshot,
   /* .snapshot_from = */ opus_from_snapshot,
   /* .snapshot_to = */ opus_to_snapshot,
-  /* .snapshot_roms = */ opus_snapshot_roms,
 
 };
 
@@ -444,7 +442,7 @@ opus_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
-opus_snapshot_roms( libspectrum_snap *snap )
+opus_from_snapshot( libspectrum_snap *snap )
 {
   if( !libspectrum_snap_opus_active( snap ) ) return;
 
@@ -455,13 +453,6 @@ opus_snapshot_roms( libspectrum_snap *snap )
                              libspectrum_snap_opus_rom( snap, 0 ),
                              OPUS_ROM_SIZE, 1 ) )
     return;
-
-}
-
-static void
-opus_from_snapshot( libspectrum_snap *snap )
-{
-  if( !libspectrum_snap_opus_active( snap ) ) return;
 
   if( libspectrum_snap_opus_ram( snap, 0 ) ) {
     memcpy( opus_ram,
@@ -595,7 +586,6 @@ opus_unittest( void )
     MEMORY_PAGE_SIZE - 1 ] = 0;
   opus_unpage();
   libspectrum_snap_opus_rom( snap, 0 )[ 0 ] = 0xa5;
-  opus_snapshot_roms( snap );
   opus_from_snapshot( snap );
 
   if( opus_memory_map_romcs_ram[ 0 ].page[ 0 ] != 0x55 ||

@@ -28,7 +28,6 @@
 #include <ctype.h>
 
 #include "widget_internals.h"
-#include "utf8.h"
 
 char *widget_text_text = NULL;	/* What we return the text in */
 
@@ -74,11 +73,10 @@ widget_text_draw_text( void )
 
   widget_rectangle( 12, 28, 232, 8, WIDGET_COLOUR_BACKGROUND );
 
-  tptr = text;
-  while( ( width = widget_stringwidth( tptr ) ) > 28 * 8 - 4 ) {
-    size_t remaining = strlen( tptr );
-    widget_utf8_next( &tptr, &remaining );
-  }
+  tptr = text - 1;
+  do {
+    width = widget_stringwidth (++tptr);
+  } while (width > 28 * 8 - 4);
 
   if( tptr != text )
     widget_rectangle( 14, 29, 1, 6, 5 );
@@ -148,7 +146,7 @@ delete_character( void )
 {
   size_t length = strlen( text );
 
-  if( length ) text[ widget_utf8_previous( text, length ) ] = '\0';
+  if( length ) text[ length - 1 ] = '\0';
 }
 
 static void

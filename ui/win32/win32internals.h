@@ -84,11 +84,6 @@ int win32display_scaled_width( void );
 void win32display_area(int x, int y, int width, int height);
 int win32display_drawing_area_resize( int width, int height, int force_scaler );
 
-void win32display_fullscreen_begin( void );
-void win32display_fullscreen_resize( int width, int height );
-void win32display_fullscreen_end( void );
-void win32display_fullscreen_restore( void );
-
 void blit( void );
 
 /*
@@ -112,9 +107,6 @@ void win32mouse_button( int button, int down );
  */
 
 void win32ui_fuse_resize( int width, int height );
-
-int win32ui_is_full_screen( void );
-void win32ui_fullscreen_apply( void );
 
 int win32ui_confirm( const char *string );
 

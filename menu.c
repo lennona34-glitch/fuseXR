@@ -56,6 +56,7 @@
 #include "snapshot.h"
 #include "svg.h"
 #include "tape.h"
+#include "ui/quest_vr.h"
 #include "ui/scaler/scaler.h"
 #include "ui/ui.h"
 #include "ui/uimedia.h"
@@ -327,6 +328,38 @@ MENU_CALLBACK( menu_options_fullscreen )
 {
   ui_widget_finish();
   settings_current.full_screen = !settings_current.full_screen;
+}
+
+MENU_CALLBACK( menu_options_questvr_toggle )
+{
+  ui_widget_finish();
+  quest_vr_toggle();
+}
+
+MENU_CALLBACK( menu_options_questvr_open )
+{
+  ui_widget_finish();
+  quest_vr_open_browser();
+}
+
+MENU_CALLBACK( menu_options_questvr_copy_url )
+{
+  ui_widget_finish();
+  quest_vr_copy_url_to_clipboard();
+}
+
+MENU_CALLBACK_WITH_ACTION( menu_options_questvr_mode )
+{
+  ui_widget_finish();
+  if( action >= 1 && action <= 4 ) {
+    quest_vr_set_stereo_mode( (quest_vr_stereo_mode)( action - 1 ) );
+  }
+}
+
+const char*
+menu_questvr_detail( void )
+{
+  return quest_vr_get_status_detail();
 }
 
 MENU_CALLBACK( menu_options_save )

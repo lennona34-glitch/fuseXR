@@ -136,15 +136,24 @@ Options/_Filter..., Item,,, menu_filter_detail
 Options/_Filter options..., Item
 #endif
 
-#ifdef UI_SDL2
+#ifdef UI_SDL
+Options/F_ull screen, Item, F11
+#elif defined UI_SDL2
 Options/F_ull screen, Item, F11
 #elif defined UI_GTK
-Options/F_ull screen, Item, F11
-#elif defined UI_WIN32
 Options/F_ull screen, Item, F11
 #endif
 
 Options/_Disk options..., Item
+
+Options/_Quest VR Broadcast, Branch,,, menu_questvr_detail
+Options/Quest VR Broadcast/_Toggle Broadcast, Item, F12, menu_options_questvr_toggle, menu_questvr_detail
+Options/Quest VR Broadcast/_Open WebXR Studio in Browser, Item,, menu_options_questvr_open
+Options/Quest VR Broadcast/_Copy Stream URL to Clipboard, Item,, menu_options_questvr_copy_url
+Options/Quest VR Broadcast/Mode: _2D Cinema, Item,, menu_options_questvr_mode,, 1
+Options/Quest VR Broadcast/Mode: _SBS 3D Depth, Item,, menu_options_questvr_mode,, 2
+Options/Quest VR Broadcast/Mode: Top-_Bottom 3D, Item,, menu_options_questvr_mode,, 3
+Options/Quest VR Broadcast/Mode: _Anaglyph 3D, Item,, menu_options_questvr_mode,, 4
 
 Options/separator, Separator
 Options/S_ave, Item

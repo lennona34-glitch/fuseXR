@@ -38,7 +38,7 @@
 
 /* The +2 emulation just uses the 128K routines */
 
-static int specplus2_reset( int hard_reset, libspectrum_snap *snap );
+static int specplus2_reset( int hard_reset );
 
 int specplus2_init( fuse_machine_info *machine )
 {
@@ -63,15 +63,15 @@ int specplus2_init( fuse_machine_info *machine )
 }
 
 static int
-specplus2_reset( int hard_reset, libspectrum_snap *snap )
+specplus2_reset( int hard_reset )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_plus2_0,
-                            settings_default.rom_plus2_0, 0x4000, snap );
+                            settings_default.rom_plus2_0, 0x4000 );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_plus2_1,
-                            settings_default.rom_plus2_1, 0x4000, snap );
+                            settings_default.rom_plus2_1, 0x4000 );
   if( error ) return error;
 
   error = spec128_common_reset( 1 );

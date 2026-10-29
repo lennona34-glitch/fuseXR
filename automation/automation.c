@@ -32,12 +32,10 @@
 #include "state.h"
 #include "compat.h"
 #include "fuse.h"
-#include "event.h"
 #include "machine.h"
 #include "memory_pages.h"
 #include "settings.h"
 #include "utils.h"
-#include "z80/z80.h"
 
 typedef struct diagnostic { ui_error_level severity;
                             char *message;} diagnostic;
@@ -57,7 +55,6 @@ static char *rzx_name, *snapshot_name;
 static int rzx_recorded, snapshot_recorded;
 static int armed, disk_motor_on, disk_motor_observed;
 static unsigned long disk_motor_off_frame;
-static int sample_event_type, sample_event_scheduled;
 
 static int
 parse_count( const char *text, unsigned long *value, int allow_zero )
@@ -138,17 +135,6 @@ automation_set_disk_idle_frames( const char *frames )
   return 0;
 }
 
-int
-automation_set_sample_tstates( const char *text )
-{
-  if( parse_count( text, &scenario.sample_tstates, 0 ) ||
-      scenario.sample_tstates > 5000 ) {
-    fprintf( stderr, "invalid automation sample T-state offset: %s\n", text );
-    return 1;
-  }
-  return 0;
-}
-
 void
 automation_set_capture_screen( void )
 {
@@ -207,17 +193,14 @@ automation_validate_scenario( void )
   if( !scenario.output_directory && !scenario.maximum_frames && !conditions &&
       !scenario.failure.ignore && !scenario.until_rzx_end &&
       !scenario.until_disk_idle && !scenario.disk_idle_frames &&
-      !scenario.capture_screen && !scenario.capture_audio &&
-      !scenario.sample_tstates )
+      !scenario.capture_screen && !scenario.capture_audio )
     return 0;
 
   if( !scenario.output_directory || !scenario.maximum_frames ||
       ( conditions && !scenario.success.present ) ||
       ( scenario.failure.ignore && !scenario.failure.present ) ||
       ( scenario.disk_idle_frames && !scenario.until_disk_idle ) ||
-      ( scenario.until_rzx_end && scenario.until_disk_idle ) ||
-      ( scenario.sample_tstates && ( conditions || scenario.until_rzx_end ||
-                                     scenario.until_disk_idle ) ) ) {
+      ( scenario.until_rzx_end && scenario.until_disk_idle ) ) {
     fprintf( stderr,
              "automation requires --automation-output, a frame limit, and a success PC for condition runs\n" );
     return 1;
@@ -232,25 +215,12 @@ automation_active( void )
   return scenario.output_directory != NULL;
 }
 
-/* Whether the PC-boundary automation check needs to run. When no success or
-   failure PC is configured (e.g. a pure frame-count or RZX-completion run),
-   automation_check_pc() would only be called per-opcode and immediately
-   return, so gating it off avoids that per-opcode call overhead. */
-int
-automation_pc_check_active( void )
-{
-  return scenario.success.present || scenario.failure.present;
-}
-
 void
 automation_arm( unsigned long frame_count )
 {
   first_frame = frame_count;
   result.frames_completed = 0;
   armed = 1;
-  sample_event_scheduled = 0;
-  if( scenario.sample_tstates )
-    sample_event_type = event_register( NULL, "Automation sample offset" );
   if( result.termination == AUTOMATION_TERMINATION_FRAMES )
     result.termination =
       ( scenario.success.present || scenario.until_rzx_end ||
@@ -291,14 +261,6 @@ automation_frame_limit_reached( unsigned long frame_count )
     result.termination = AUTOMATION_TERMINATION_DISK_IDLE;
     return 1;
   }
-  if( result.frames_completed >= scenario.maximum_frames &&
-      scenario.sample_tstates ) {
-    if( !sample_event_scheduled ) {
-      event_add( scenario.sample_tstates, sample_event_type );
-      sample_event_scheduled = 1;
-    }
-    return tstates >= scenario.sample_tstates;
-  }
   return result.frames_completed >= scenario.maximum_frames;
 }
 
@@ -314,8 +276,8 @@ automation_exit_status( void )
          result.termination == AUTOMATION_TERMINATION_ERROR ? 1 : 0;
 }
 
-unsigned long
-automation_checksum( const unsigned char *data, size_t length )
+static uLong
+checksum( const unsigned char *data, size_t length )
 {
   uLong value = crc32( 0, Z_NULL, 0 );
   while( length ) {
@@ -336,7 +298,7 @@ automation_record_tape( const utils_file *file )
     return;
 
   tape_size = libspectrum_file_size( file );
-  tape_crc32 = automation_checksum( libspectrum_file_data( file ), tape_size );
+  tape_crc32 = checksum( libspectrum_file_data( file ), tape_size );
   tape_recorded = 1;
   name = libspectrum_file_name( file );
   libspectrum_free( tape_name );
@@ -348,7 +310,7 @@ record_file( const utils_file *file, uLong *crc, size_t *size, char **name )
 {
   const char *source = libspectrum_file_name( file );
   *size = libspectrum_file_size( file );
-  *crc = automation_checksum( libspectrum_file_data( file ), *size );
+  *crc = checksum( libspectrum_file_data( file ), *size );
   libspectrum_free( *name );
   *name = utils_safe_strdup( source );
 }
@@ -493,7 +455,7 @@ static void
 write_crc32( automation_json *json, const unsigned char *data, size_t length )
 {
   char text[9];
-  snprintf( text, sizeof( text ), "%08lx", automation_checksum( data, length ) );
+  snprintf( text, sizeof( text ), "%08lx", checksum( data, length ) );
   automation_json_string( json, "crc32", text );
 }
 
@@ -502,8 +464,6 @@ write_scenario( automation_json *json )
 {
   automation_json_object_begin( json, "scenario" );
   automation_json_ulong( json, "maximum_frames", scenario.maximum_frames );
-  if( scenario.sample_tstates )
-    automation_json_ulong( json, "sample_tstates", scenario.sample_tstates );
   automation_json_boolean( json, "until_rzx_end", scenario.until_rzx_end );
   automation_json_boolean( json, "until_disk_idle",
                            scenario.until_disk_idle );

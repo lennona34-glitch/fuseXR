@@ -59,10 +59,8 @@ reset( gpointer data, gpointer user_data )
 }
 
 void
-module_reset( int hard_reset, libspectrum_snap *snap )
+module_reset( int hard_reset )
 {
-  if( snap ) module_snapshot_roms( snap );
-
   g_slist_foreach( registered_modules, reset, GINT_TO_POINTER( hard_reset ) );
 }
 
@@ -93,21 +91,6 @@ void
 module_snapshot_enabled( libspectrum_snap *snap )
 {
   g_slist_foreach( registered_modules, snapshot_enabled, snap );
-}
-
-static void
-snapshot_roms( gpointer data, gpointer user_data )
-{
-  const module_info_t *module = data;
-  libspectrum_snap *snap = user_data;
-
-  if( module->snapshot_roms ) module->snapshot_roms( snap );
-}
-
-void
-module_snapshot_roms( libspectrum_snap *snap )
-{
-  g_slist_foreach( registered_modules, snapshot_roms, snap );
 }
 
 static void

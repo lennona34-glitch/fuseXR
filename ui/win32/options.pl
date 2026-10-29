@@ -52,6 +52,7 @@ print Fuse::GPL( 'options.c: options dialog boxes',
 #include "options_internals.h"
 #include "periph.h"
 #include "settings.h"
+#include "ui/quest_vr.h"
 #include "ui/win32/win32internals.h"
 #include "utils.h"
 

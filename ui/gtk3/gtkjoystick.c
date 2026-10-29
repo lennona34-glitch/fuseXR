@@ -42,7 +42,7 @@
 
 #else
 
-#include "../sdl2/sdl2_joystick.c"
+#include "../sdl/sdljoystick.c"
 
 #endif
 
@@ -363,8 +363,6 @@ create_fire_button_selector( const char *title, struct button_info *info,
   gtk_container_add( GTK_CONTAINER( frame ), box );
 
   info->key = *info->setting;
-  if( info->key == KEYBOARD_MENU )
-    info->key = KEYBOARD_JOYSTICK_FIRE;
 
   /* Create combobox */
   combo = gtk_combo_box_new_with_model( model );

@@ -27,8 +27,6 @@
 #ifndef FUSE_DCK_H
 #define FUSE_DCK_H
 
-#include <libspectrum.h>
-
 /* Dock cart inserted? */
 extern int dck_active;
 
@@ -38,8 +36,5 @@ int dck_insert( const char *filename );
 int dck_insert_loaded( const struct libspectrum_file *file );
 void dck_eject( void );
 int dck_reset( int hard_reset );
-void dck_discard( void );
-int dck_restore_page( libspectrum_dck_bank bank, int page, int writable,
-                      const libspectrum_byte *data );
 
 #endif

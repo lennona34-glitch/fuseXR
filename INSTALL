@@ -12,16 +12,12 @@ There are now some options you can give to configure; `configure
 --help' will list them all, but the most important are:
 
 --with-fb		Use the framebuffer interface, rather than GTK.
---with-sdl		Use the SDL2 interface, rather than GTK.
---with-null-ui		Use the null user interface (headless builds and CI).
+--with-sdl		Use the SDL interface, rather than GTK.
 --without-gtk		Use the plain Xlib interface.
 
 If glib is installed on your system, Fuse will use this for a couple
 of things; however, it isn't necessary as libspectrum provides
 replacements for all the routines used by Fuse.
-
-The `--enable-automation` option enables the development automation
-interface used by the CI unit-test runs; it requires zlib.
 
 Another useful option is `--with-local-prefix=DIRECTORY' which allows
 you to specify that you have some of the libraries needed by Fuse in
@@ -49,8 +45,8 @@ Note that if you're using version of Fuse from Git rather than
 one of the released tarballs, you'll need to run `autogen.sh' before
 running 'configure' for the first time.
 
-Building the macOS version of Fuse
-----------------------------------
+Building the OS X version of Fuse
+---------------------------------
 
 The native Cocoa port by Fredrick Meunier <fredm@spamcop.net> comes as
 a set of Xcode projects for libgcrypt, libspectrum and Fuse itself.
@@ -101,7 +97,7 @@ the lib's homepage for help.
 
 1) On Linux, first build libspectrum:
 
-./configure --host=i686-w64-mingw32 --without-zlib \
+./configure --host=i686-w64-mingw32 --without-libaudiofile --without-zlib \
             --without-libgcrypt --without-bzip2 --with-fake-glib --prefix=`pwd`
 make install
 
@@ -123,7 +119,7 @@ likely it is located in /usr/i686-w64-mingw32/lib/
 
 2) On Windows, using MSYS2 + Mingw-w64 toolchain, first build libspectrum:
 
-./configure --with-fake-glib --without-libgcrypt \
+./configure --with-fake-glib --without-libaudiofile --without-libgcrypt \
             --without-zlib --without-bzip2 --prefix=/usr/local
 make install
 
@@ -137,7 +133,7 @@ make
 3) On Windows, using Cygwin + Mingw-w64 toolchain, first build libspectrum:
 
 ./configure --build=i686-pc-cygwin --host=i686-w64-mingw32 --with-fake-glib \
-            --without-libgcrypt --without-zlib \
+            --without-libaudiofile --without-libgcrypt --without-zlib \
             --without-bzip2 --prefix=/usr/local/i686-w64-mingw32
 make install
 

@@ -52,6 +52,7 @@ print Fuse::GPL( 'options.c: options dialog boxes',
 #include "options.h"
 #include "options_internals.h"
 #include "periph.h"
+#include "ui/quest_vr.h"
 #include "ui/widget/widget_internals.h"
 #include "ui/uidisplay.h"
 
@@ -392,6 +393,7 @@ widget_options_finish( widget_finish_state finished )
 
     /* make the needed UI changes */
     uidisplay_hotswap_gfx_mode();
+    quest_vr_apply_settings();
   }
   settings_free( &widget_options_settings );
   memset( &widget_options_settings, 0, sizeof( settings_info ) );

@@ -94,8 +94,8 @@ dialog_proc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam )
         case IDCLOSE:
         case IDCANCEL:
           DestroyWindow( hwndDlg );
-		  fuse_hABOWnd = NULL;
-          if( hBoldFont ) DeleteObject( hBoldFont );
+          fuse_hABOWnd = NULL;
+          if( hBoldFont ) { DeleteObject( hBoldFont ); hBoldFont = NULL; }
           return TRUE;
         case IDC_ABOUT_STATIC_WEBSITE:
           ShellExecute( hwndDlg, "open", PACKAGE_URL,
@@ -107,6 +107,7 @@ dialog_proc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam )
     case WM_CLOSE:
       DestroyWindow( hwndDlg );
       fuse_hABOWnd = NULL;
+      if( hBoldFont ) { DeleteObject( hBoldFont ); hBoldFont = NULL; }
       return TRUE;
   }
 

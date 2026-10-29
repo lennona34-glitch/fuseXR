@@ -4,10 +4,6 @@ run-name: Build Fuse App for Linux / ${{ github.actor }} /
 # Executed upon each commit pushed, merge commit in PR
 on: [pull_request]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   libspectrum:
     # Build libspectrum from the canonical SourceForge repository.
@@ -33,7 +29,7 @@ jobs:
     uses: ./.github/workflows/build_linux_sub.yml
     with:
       name: Default
-      dependencies: "libgcrypt-dev xorg-dev"
+      dependencies: "libaudiofile-dev libgcrypt-dev xorg-dev"
       configure_params: ""
       verify_ui: "xlib"
 
@@ -48,8 +44,8 @@ jobs:
     uses: ./.github/workflows/build_linux_sub.yml
     with:
       name: "NULL UI"
-      dependencies: "libgcrypt-dev libpng-dev"
-      configure_params: "--with-null-ui --enable-automation"
+      dependencies: "libaudiofile-dev libgcrypt-dev libpng-dev"
+      configure_params: "--with-null-ui"
       verify_ui: "null"
       run_check: true
 
@@ -60,12 +56,24 @@ jobs:
     uses: ./.github/workflows/build_linux_sub.yml
     with:
       name: GTK3 UI
-      dependencies: "libgcrypt-dev gtk3.0 libgtk-3-dev"
+      dependencies: "libaudiofile-dev libgcrypt-dev gtk3.0 libgtk-3-dev"
       configure_params: "--with-gtk"
       libspectrum_key: fuse-app-gtk
       verify_ui: "gtk"
       verify_other: "Using GTK 3: yes"
-      run_check: true
+
+  # SDL 1 UI + Sound
+  sdl1-ui:
+    name: "Fuse SDL 1 UI + sound (Linux)"
+    needs: [libspectrum]
+    uses: ./.github/workflows/build_linux_sub.yml
+    with:
+      name: SDL1 UI
+      dependencies: "libaudiofile-dev libgcrypt-dev libsdl1.2-dev libpng-dev"
+      configure_params: "--with-sdl --disable-sdl2"
+      verify_ui: "sdl"
+      verify_audio: "sdl"
+      verify_other: "Using SDL: 1"
 
   # SDL 2 UI + Sound
   sdl2-ui:
@@ -74,12 +82,11 @@ jobs:
     uses: ./.github/workflows/build_linux_sub.yml
     with:
       name: SDL2 UI
-      dependencies: "libgcrypt-dev libsdl2-dev libpng-dev"
+      dependencies: "libaudiofile-dev libgcrypt-dev libsdl2-dev libpng-dev"
       configure_params: "--with-sdl"
       verify_ui: "sdl2"
       verify_audio: "sdl"
       verify_other: "Using SDL: 2"
-      run_check: true
 
 ##########################################
 ### DEPRECATED Linux UI configurations ###
@@ -92,7 +99,7 @@ jobs:
     uses: ./.github/workflows/build_linux_sub.yml
     with:
       name: "FB UI (deprecated)"
-      dependencies: "libgpm-dev libgcrypt-dev libpng-dev"
+      dependencies: "libaudiofile-dev libgpm-dev libgcrypt-dev libpng-dev"
       configure_params: "--with-fb"
       verify_ui: "fb"
 
@@ -103,6 +110,6 @@ jobs:
     uses: ./.github/workflows/build_linux_sub.yml
     with:
       name: X-lib UI (deprecated)
-      dependencies: "libgcrypt-dev xorg-dev"
+      dependencies: "libaudiofile-dev libgcrypt-dev xorg-dev"
       configure_params: "--with-x"
       verify_ui: "xlib"

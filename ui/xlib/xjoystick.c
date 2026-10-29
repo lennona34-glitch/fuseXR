@@ -32,6 +32,6 @@
 
 #else
 
-#include "../sdl2/sdl2_joystick.c"
+#include "../sdl/sdljoystick.c"
 
 #endif
