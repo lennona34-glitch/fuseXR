@@ -2711,36 +2711,41 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
 
 #ifdef WIN32
 
-#define IDM_FXR_RANDOM_ANY         40001
-#define IDM_FXR_RANDOM_Z80         40002
-#define IDM_FXR_RANDOM_TAP         40003
-#define IDM_FXR_RANDOM_DSK         40004
-#define IDM_FXR_RANDOM_TRD         40005
-#define IDM_FXR_RANDOM_TZX         40006
-#define IDM_FXR_RANDOM_LOCAL       40007
-#define IDM_FXR_TOSEC_SEARCH_DLG   40008
-#define IDM_FXR_DICE_BTN           40009
-#define IDM_FXR_ONLINE_RANDOM_ANY  40010
-#define IDM_FXR_ONLINE_IA_TOSEC    40011
-#define IDM_FXR_ONLINE_IA_LIB      40012
-#define IDM_FXR_ONLINE_VTRDOS      40013
-#define IDM_FXR_ONLINE_FMT_Z80     40014
-#define IDM_FXR_ONLINE_FMT_TAP     40015
-#define IDM_FXR_ONLINE_FMT_DSK     40016
-#define IDM_FXR_ONLINE_FMT_TRD     40017
-#define IDM_FXR_ONLINE_FMT_TZX     40018
-#define IDM_FXR_ONLINE_TOGGLE_DICE 40019
+#define IDM_FXR_OFFLINE_RANDOM_ANY   40001
+#define IDM_FXR_OFFLINE_RANDOM_Z80   40002
+#define IDM_FXR_OFFLINE_RANDOM_TAP   40003
+#define IDM_FXR_OFFLINE_RANDOM_DSK   40004
+#define IDM_FXR_OFFLINE_RANDOM_TRD   40005
+#define IDM_FXR_OFFLINE_RANDOM_TZX   40006
+#define IDM_FXR_OFFLINE_RANDOM_LOCAL 40007
+#define IDM_FXR_TOSEC_SEARCH_DLG     40008
+#define IDM_FXR_DICE_BTN             40009
+#define IDM_FXR_ONLINE_RANDOM_ANY    40010
+#define IDM_FXR_ONLINE_IA_TOSEC      40011
+#define IDM_FXR_ONLINE_IA_LIB        40012
+#define IDM_FXR_ONLINE_VTRDOS        40013
+#define IDM_FXR_ONLINE_FMT_Z80       40014
+#define IDM_FXR_ONLINE_FMT_TAP       40015
+#define IDM_FXR_ONLINE_FMT_DSK       40016
+#define IDM_FXR_ONLINE_FMT_TRD       40017
+#define IDM_FXR_ONLINE_FMT_TZX       40018
+#define IDM_FXR_ONLINE_TOGGLE_DICE   40019
 
-#define IDM_FXR_ARCHIVE_IA_LIB     40020
-#define IDM_FXR_ARCHIVE_IA_WOS     40021
-#define IDM_FXR_ARCHIVE_IA_Z80     40022
-#define IDM_FXR_ARCHIVE_ZXDB       40023
-#define IDM_FXR_ARCHIVE_WOS        40024
-#define IDM_FXR_ARCHIVE_TIPSHOP    40025
-#define IDM_FXR_ARCHIVE_VTRDOS     40026
-#define IDM_FXR_OPEN_DOWNLOADS_DIR 40029
+#define IDM_FXR_ARCHIVE_IA_LIB       40020
+#define IDM_FXR_ARCHIVE_IA_WOS       40021
+#define IDM_FXR_ARCHIVE_IA_Z80       40022
+#define IDM_FXR_ARCHIVE_ZXDB         40023
+#define IDM_FXR_ARCHIVE_WOS          40024
+#define IDM_FXR_ARCHIVE_TIPSHOP      40025
+#define IDM_FXR_ARCHIVE_VTRDOS       40026
+#define IDM_FXR_OPEN_DOWNLOADS_DIR   40029
 
-#define IDM_FXR_CHEAT_AUTO        40040
+#define IDM_FXR_DL_GAMES_DLG         40030
+#define IDM_FXR_DL_GAMES_RND         40031
+#define IDM_FXR_DICE_MODE_OFFLINE    40033
+#define IDM_FXR_DICE_MODE_ONLINE     40034
+
+#define IDM_FXR_CHEAT_AUTO           40040
 #define IDM_FXR_CHEAT_STUDIO_DLG  40041
 #define IDM_FXR_CHEAT_LOAD_POK    40042
 #define IDM_FXR_CHEAT_POKEMEM_UI  40043
@@ -2795,6 +2800,7 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
 #define IDM_FXR_VR_FPS_90         40291
 
 #define IDM_FXR_LOCAL_GAME_BASE   41000 /* 41000 .. 41255 */
+#define IDM_FXR_DL_GAME_BASE      42000 /* 42000 .. 42255 */
 
 typedef struct fxr_poke_pair_t {
   int addr;
@@ -2837,6 +2843,24 @@ static int g_fxr_local_game_count = 0;
 static char g_fxr_current_game[256] = "Sinclair BASIC";
 static HWND g_fxr_main_hwnd = NULL;
 
+typedef struct fxr_downloaded_game_t {
+  char title[180];
+  char full_path[512];
+  char filename[260];
+  char fmt[8];
+  DWORD size_bytes;
+} fxr_downloaded_game_t;
+
+static fxr_downloaded_game_t *g_fxr_dl_games = NULL;
+static int g_fxr_dl_count = 0;
+static int g_fxr_dl_cap = 0;
+static HWND g_hwnd_dl_dlg = NULL;
+static HWND g_hwnd_dl_edit = NULL;
+static HWND g_hwnd_dl_list = NULL;
+static HWND g_hwnd_dl_status = NULL;
+static int g_dl_dlg_map[1000];
+static int g_dl_dlg_map_count = 0;
+
 typedef struct fxr_tosec_entry_t {
   char title[120];
   char full_path[320];
@@ -2848,7 +2872,7 @@ static int g_fxr_tosec_count = 0;
 static int g_fxr_tosec_cap = 0;
 static int g_fxr_tosec_indexed = 0;
 static int g_fxr_local_tosec_found = 0;
-static int g_fxr_force_online_dice = 1;
+static int g_fxr_dice_mode = 0; /* 0 = Offline TOSEC 29k (Instant - Default), 1 = Online Cloud */
 static int g_fxr_suppress_ui_error = 0;
 static int g_fxr_fullscreen = 0;
 static HMENU g_fxr_saved_menu = NULL;
@@ -2857,6 +2881,8 @@ static WINDOWPLACEMENT g_fxr_saved_wp = { sizeof( WINDOWPLACEMENT ) };
 static HMENU g_fxr_hSubCloud = NULL;
 static HMENU g_fxr_hSubFilt = NULL;
 static HMENU g_fxr_hSubJoy = NULL;
+static HMENU g_fxr_hSubDiceMode = NULL;
+static HMENU g_fxr_hSubDlGames = NULL;
 static int g_fxr_locked_scaler = -1;
 static HBITMAP g_fxr_dice_bmp = NULL;
 
@@ -3518,7 +3544,7 @@ fxr_build_tosec_index( void )
   if( g_fxr_tosec_indexed ) return;
   g_fxr_tosec_indexed = 1;
 
-  g_fxr_tosec_cap = 32768;
+  g_fxr_tosec_cap = 40000;
   g_fxr_tosec = (fxr_tosec_entry_t *)malloc( (size_t)g_fxr_tosec_cap * sizeof( fxr_tosec_entry_t ) );
   if( !g_fxr_tosec ) return;
   g_fxr_tosec_count = 0;
@@ -3740,6 +3766,33 @@ fxr_load_random_game( const char *fmt_filter, int local_only )
       }
     }
   }
+}
+
+static int
+fxr_load_random_offline_tosec_game( const char *fmt_filter )
+{
+  uint64_t rval = fxr_next_rand();
+  fxr_build_tosec_index();
+  if( !g_fxr_local_tosec_found || !g_fxr_tosec || g_fxr_tosec_count == 0 ) {
+    fxr_update_window_title( "Offline TOSEC 29k Archive Not Found" );
+    return 0;
+  }
+
+  int tries;
+  for( tries = 0; tries < 1000; tries++ ) {
+    int idx = (int)( ( rval + (uint64_t)tries * 7919ULL ) % (uint64_t)g_fxr_tosec_count );
+    const fxr_tosec_entry_t *e = &g_fxr_tosec[idx];
+    if( fmt_filter && fmt_filter[0] ) {
+      if( strcasecmp( e->fmt, fmt_filter ) != 0 ) continue;
+    }
+    if( fxr_load_file_direct( e->full_path, e->title, e->fmt ) ) {
+      char st[256];
+      snprintf( st, sizeof( st ), "Offline TOSEC: %s", e->title );
+      fxr_update_window_title( st );
+      return 1;
+    }
+  }
+  return 0;
 }
 
 static void
@@ -4063,6 +4116,294 @@ fxr_open_tosec_search_dialog( HWND hParent )
 
   fxr_refresh_tosec_listbox();
   SetFocus( g_hwnd_tosec_edit );
+}
+
+/* ============================================================================
+ * Native Win32 Modeless Window 1B: Downloaded Games Library (games/downloads)
+ * ============================================================================ */
+
+#define IDC_DL_EDIT        7001
+#define IDC_DL_LIST        7002
+#define IDC_DL_LOAD        7003
+#define IDC_DL_BTN_RND     7004
+#define IDC_DL_BTN_FOLDER  7005
+#define IDC_DL_BTN_REFRESH 7006
+#define IDC_DL_BTN_DELETE  7007
+
+static void
+fxr_scan_downloaded_games( void )
+{
+  char dl_dir[512], pattern[512];
+  WIN32_FIND_DATAA fd;
+  HANDLE hFind;
+
+  fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+  if( !g_fxr_dl_games ) {
+    g_fxr_dl_cap = 2048;
+    g_fxr_dl_games = (fxr_downloaded_game_t *)malloc( (size_t)g_fxr_dl_cap * sizeof( fxr_downloaded_game_t ) );
+  }
+  g_fxr_dl_count = 0;
+  if( !g_fxr_dl_games ) return;
+
+  snprintf( pattern, sizeof( pattern ), "%s/*.*", dl_dir );
+  hFind = FindFirstFileA( pattern, &fd );
+  if( hFind == INVALID_HANDLE_VALUE ) return;
+
+  do {
+    if( fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) continue;
+    if( fd.cFileName[0] == '.' || fd.cFileName[0] == '_' ) continue;
+    const char *dot = strrchr( fd.cFileName, '.' );
+    if( !dot ) continue;
+    const char *ext = dot + 1;
+    if( strcasecmp( ext, "z80" ) != 0 && strcasecmp( ext, "sna" ) != 0 &&
+        strcasecmp( ext, "tap" ) != 0 && strcasecmp( ext, "tzx" ) != 0 &&
+        strcasecmp( ext, "dsk" ) != 0 && strcasecmp( ext, "trd" ) != 0 &&
+        strcasecmp( ext, "scl" ) != 0 && strcasecmp( ext, "zip" ) != 0 ) {
+      continue;
+    }
+
+    if( g_fxr_dl_count >= g_fxr_dl_cap ) break;
+    fxr_downloaded_game_t *g = &g_fxr_dl_games[g_fxr_dl_count++];
+    snprintf( g->filename, sizeof( g->filename ), "%s", fd.cFileName );
+    snprintf( g->full_path, sizeof( g->full_path ), "%s/%s", dl_dir, fd.cFileName );
+    snprintf( g->title, sizeof( g->title ), "%s", fd.cFileName );
+    char *clean_dot = strrchr( g->title, '.' );
+    if( clean_dot ) *clean_dot = '\0';
+    snprintf( g->fmt, sizeof( g->fmt ), "%s", ext );
+    g->size_bytes = fd.nFileSizeLow;
+  } while( FindNextFileA( hFind, &fd ) );
+
+  FindClose( hFind );
+}
+
+static void
+fxr_refresh_dl_listbox( void )
+{
+  char q[128] = { 0 };
+  char q_low[128] = { 0 };
+  int i, total_matched = 0;
+  size_t k;
+  uint64_t total_bytes = 0;
+
+  if( !g_hwnd_dl_list ) return;
+  fxr_scan_downloaded_games();
+
+  if( g_hwnd_dl_edit ) {
+    GetWindowTextA( g_hwnd_dl_edit, q, sizeof( q ) );
+  }
+  for( k = 0; q[k] && k + 1 < sizeof( q_low ); k++ ) {
+    q_low[k] = (char)tolower( (unsigned char)q[k] );
+  }
+  q_low[k] = '\0';
+
+  SendMessageA( g_hwnd_dl_list, LB_RESETCONTENT, 0, 0 );
+  g_dl_dlg_map_count = 0;
+
+  for( i = 0; i < g_fxr_dl_count; i++ ) {
+    const fxr_downloaded_game_t *g = &g_fxr_dl_games[i];
+    total_bytes += g->size_bytes;
+    if( q_low[0] ) {
+      char t_low[256];
+      for( k = 0; g->title[k] && k + 1 < sizeof( t_low ); k++ ) {
+        t_low[k] = (char)tolower( (unsigned char)g->title[k] );
+      }
+      t_low[k] = '\0';
+      if( !strstr( t_low, q_low ) ) continue;
+    }
+    total_matched++;
+    if( g_dl_dlg_map_count < 950 ) {
+      char row_txt[256];
+      int kb = (int)( ( g->size_bytes + 1023 ) / 1024 );
+      snprintf( row_txt, sizeof( row_txt ), "[%s]  %s  (%d KB)", g->fmt, g->title, kb );
+      SendMessageA( g_hwnd_dl_list, LB_ADDSTRING, 0, (LPARAM)row_txt );
+      g_dl_dlg_map[g_dl_dlg_map_count++] = i;
+    }
+  }
+
+  if( g_dl_dlg_map_count > 0 ) {
+    SendMessageA( g_hwnd_dl_list, LB_SETCURSEL, 0, 0 );
+  }
+
+  if( g_hwnd_dl_status ) {
+    char st[200];
+    double mb = (double)total_bytes / ( 1024.0 * 1024.0 );
+    snprintf( st, sizeof( st ),
+      "Showing %d of %d downloaded games (Total library: %.1f MB). Double-click or press Enter to load!",
+      g_dl_dlg_map_count, total_matched, mb );
+    SetWindowTextA( g_hwnd_dl_status, st );
+  }
+}
+
+static void
+fxr_dl_load_selected( void )
+{
+  if( !g_hwnd_dl_list ) return;
+  int sel = (int)SendMessageA( g_hwnd_dl_list, LB_GETCURSEL, 0, 0 );
+  if( sel >= 0 && sel < g_dl_dlg_map_count ) {
+    int idx = g_dl_dlg_map[sel];
+    if( idx >= 0 && idx < g_fxr_dl_count ) {
+      const fxr_downloaded_game_t *g = &g_fxr_dl_games[idx];
+      fxr_load_file_direct( g->full_path, g->title, g->fmt );
+      char st[256];
+      snprintf( st, sizeof( st ), "Downloaded: %s", g->title );
+      fxr_update_window_title( st );
+    }
+  }
+}
+
+static void
+fxr_load_random_downloaded_game( void )
+{
+  fxr_scan_downloaded_games();
+  if( g_fxr_dl_count <= 0 ) {
+    fxr_update_window_title( "No Downloaded Games Found" );
+    return;
+  }
+  int idx = (int)( fxr_next_rand() % (uint64_t)g_fxr_dl_count );
+  const fxr_downloaded_game_t *g = &g_fxr_dl_games[idx];
+  if( fxr_load_file_direct( g->full_path, g->title, g->fmt ) ) {
+    char st[256];
+    snprintf( st, sizeof( st ), "Downloaded: %s", g->title );
+    fxr_update_window_title( st );
+  }
+}
+
+static LRESULT CALLBACK
+fxr_dl_wnd_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
+{
+  switch( msg ) {
+  case WM_COMMAND: {
+    WORD id = LOWORD( wParam );
+    WORD code = HIWORD( wParam );
+    if( id == IDC_DL_EDIT && code == EN_CHANGE ) {
+      fxr_refresh_dl_listbox();
+      return 0;
+    }
+    if( id == IDC_DL_LOAD || ( id == IDC_DL_LIST && code == LBN_DBLCLK ) ) {
+      fxr_dl_load_selected();
+      return 0;
+    }
+    if( id == IDC_DL_BTN_RND ) {
+      fxr_load_random_downloaded_game();
+      return 0;
+    }
+    if( id == IDC_DL_BTN_FOLDER ) {
+      char dl_dir[512];
+      fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+      ShellExecuteA( NULL, "open", dl_dir, NULL, NULL, SW_SHOWNORMAL );
+      return 0;
+    }
+    if( id == IDC_DL_BTN_REFRESH ) {
+      fxr_refresh_dl_listbox();
+      return 0;
+    }
+    if( id == IDC_DL_BTN_DELETE ) {
+      if( g_hwnd_dl_list ) {
+        int sel = (int)SendMessageA( g_hwnd_dl_list, LB_GETCURSEL, 0, 0 );
+        if( sel >= 0 && sel < g_dl_dlg_map_count ) {
+          int idx = g_dl_dlg_map[sel];
+          if( idx >= 0 && idx < g_fxr_dl_count ) {
+            const fxr_downloaded_game_t *g = &g_fxr_dl_games[idx];
+            char qmsg[384];
+            snprintf( qmsg, sizeof( qmsg ), "Are you sure you want to delete '%s'?", g->filename );
+            if( MessageBoxA( hWnd, qmsg, "Confirm Delete", MB_YESNO | MB_ICONQUESTION ) == IDYES ) {
+              DeleteFileA( g->full_path );
+              fxr_refresh_dl_listbox();
+            }
+          }
+        }
+      }
+      return 0;
+    }
+    break;
+  }
+  case WM_CLOSE:
+    DestroyWindow( hWnd );
+    g_hwnd_dl_dlg = NULL;
+    g_hwnd_dl_edit = NULL;
+    g_hwnd_dl_list = NULL;
+    g_hwnd_dl_status = NULL;
+    return 0;
+  }
+  return DefWindowProcA( hWnd, msg, wParam, lParam );
+}
+
+static void
+fxr_open_downloaded_games_dialog( HWND hParent )
+{
+  static int class_reg = 0;
+  HFONT hFont;
+
+  if( g_hwnd_dl_dlg && IsWindow( g_hwnd_dl_dlg ) ) {
+    ShowWindow( g_hwnd_dl_dlg, SW_RESTORE );
+    SetForegroundWindow( g_hwnd_dl_dlg );
+    fxr_refresh_dl_listbox();
+    return;
+  }
+
+  if( !class_reg ) {
+    WNDCLASSA wc;
+    memset( &wc, 0, sizeof( wc ) );
+    wc.lpfnWndProc = fxr_dl_wnd_proc;
+    wc.hInstance = GetModuleHandleA( NULL );
+    wc.hCursor = LoadCursor( NULL, IDC_ARROW );
+    wc.hbrBackground = (HBRUSH)( COLOR_BTNFACE + 1 );
+    wc.lpszClassName = "FuseXR_Downloaded_Dlg";
+    RegisterClassA( &wc );
+    class_reg = 1;
+  }
+
+  g_hwnd_dl_dlg = CreateWindowExA(
+    0, "FuseXR_Downloaded_Dlg",
+    "FuseXR - Downloaded Games Library (games/downloads)",
+    WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
+    CW_USEDEFAULT, CW_USEDEFAULT, 700, 520,
+    hParent, NULL, GetModuleHandleA( NULL ), NULL );
+
+  hFont = (HFONT)GetStockObject( DEFAULT_GUI_FONT );
+
+  HWND hLbl = CreateWindowA( "STATIC", "Search Downloaded:", WS_CHILD | WS_VISIBLE,
+    14, 16, 120, 20, g_hwnd_dl_dlg, NULL, NULL, NULL );
+  SendMessageA( hLbl, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_dl_edit = CreateWindowExA( WS_EX_CLIENTEDGE, "EDIT", "",
+    WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+    136, 13, 210, 24, g_hwnd_dl_dlg, (HMENU)IDC_DL_EDIT, NULL, NULL );
+  SendMessageA( g_hwnd_dl_edit, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnRnd = CreateWindowA( "BUTTON", "Random Downloaded", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    354, 12, 135, 26, g_hwnd_dl_dlg, (HMENU)IDC_DL_BTN_RND, NULL, NULL );
+  SendMessageA( hBtnRnd, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnRef = CreateWindowA( "BUTTON", "Refresh", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    495, 12, 75, 26, g_hwnd_dl_dlg, (HMENU)IDC_DL_BTN_REFRESH, NULL, NULL );
+  SendMessageA( hBtnRef, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnFld = CreateWindowA( "BUTTON", "Open Folder", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    576, 12, 95, 26, g_hwnd_dl_dlg, (HMENU)IDC_DL_BTN_FOLDER, NULL, NULL );
+  SendMessageA( hBtnFld, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_dl_status = CreateWindowA( "STATIC", "Scanning downloaded games...", WS_CHILD | WS_VISIBLE,
+    14, 46, 655, 18, g_hwnd_dl_dlg, NULL, NULL, NULL );
+  SendMessageA( g_hwnd_dl_status, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  g_hwnd_dl_list = CreateWindowExA( WS_EX_CLIENTEDGE, "LISTBOX", "",
+    WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
+    14, 68, 657, 360, g_hwnd_dl_dlg, (HMENU)IDC_DL_LIST, NULL, NULL );
+  SendMessageA( g_hwnd_dl_list, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnLoad = CreateWindowA( "BUTTON", "Load Selected Game into FuseXR",
+    WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+    14, 436, 520, 36, g_hwnd_dl_dlg, (HMENU)IDC_DL_LOAD, NULL, NULL );
+  SendMessageA( hBtnLoad, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  HWND hBtnDel = CreateWindowA( "BUTTON", "Delete Game",
+    WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    542, 436, 129, 36, g_hwnd_dl_dlg, (HMENU)IDC_DL_BTN_DELETE, NULL, NULL );
+  SendMessageA( hBtnDel, WM_SETFONT, (WPARAM)hFont, TRUE );
+
+  fxr_refresh_dl_listbox();
+  SetFocus( g_hwnd_dl_edit );
 }
 
 /* ============================================================================
@@ -4410,21 +4751,55 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   /* 1. Build "Games & Archives" Menu */
   HMENU hMenuGames = CreatePopupMenu();
   HMENU hSubRndFmt = CreatePopupMenu();
+  HMENU hSubDiceMode = CreatePopupMenu();
+  HMENU hSubDlGames = CreatePopupMenu();
   HMENU hSubCloud  = CreatePopupMenu();
   HMENU hSubSnap   = CreatePopupMenu();
   HMENU hSubTape   = CreatePopupMenu();
   HMENU hSubDisk   = CreatePopupMenu();
   HMENU hSubArch   = CreatePopupMenu();
-  g_fxr_hSubCloud  = hSubCloud;
+  g_fxr_hSubCloud    = hSubCloud;
+  g_fxr_hSubDiceMode = hSubDiceMode;
+  g_fxr_hSubDlGames  = hSubDlGames;
 
-  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_Z80,   "Random .&Z80 Snapshot (Instant)" );
-  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TAP,   "Random .&TAP Cassette Tape" );
-  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_DSK,   "Random +3 .&DSK Floppy Disk" );
-  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TRD,   "Random Pentagon .&TRD Disk" );
-  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_TZX,   "Random .T&ZX Turbo Tape" );
+  /* Downloaded Games submenu */
+  fxr_scan_downloaded_games();
+  AppendMenuA( hSubDlGames, MF_STRING, IDM_FXR_DL_GAMES_DLG,      "&Browse Downloaded Games Library..." );
+  AppendMenuA( hSubDlGames, MF_STRING, IDM_FXR_DL_GAMES_RND,      "Play &Random Downloaded Game" );
+  AppendMenuA( hSubDlGames, MF_STRING, IDM_FXR_OPEN_DOWNLOADS_DIR,"&Open Downloads Folder (games/downloads)..." );
+  AppendMenuA( hSubDlGames, MF_SEPARATOR, 0, NULL );
+  if( g_fxr_dl_count > 0 ) {
+    int max_m = g_fxr_dl_count < 25 ? g_fxr_dl_count : 25;
+    for( i = 0; i < max_m; i++ ) {
+      char item_txt[256];
+      snprintf( item_txt, sizeof( item_txt ), "%s [%s]", g_fxr_dl_games[i].title, g_fxr_dl_games[i].fmt );
+      AppendMenuA( hSubDlGames, MF_STRING, IDM_FXR_DL_GAME_BASE + i, item_txt );
+    }
+    if( g_fxr_dl_count > 25 ) {
+      char more_txt[128];
+      snprintf( more_txt, sizeof( more_txt ), "... and %d more in Library", g_fxr_dl_count - 25 );
+      AppendMenuA( hSubDlGames, MF_STRING | MF_GRAYED, 0, more_txt );
+    }
+  } else {
+    AppendMenuA( hSubDlGames, MF_STRING | MF_GRAYED, 0, "(No games downloaded yet)" );
+  }
+
+  /* Emerald Dice Button Mode Submenu */
+  AppendMenuA( hSubDiceMode, MF_STRING | ( ( g_fxr_dice_mode == 0 ) ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_DICE_MODE_OFFLINE, "Random from Offline &TOSEC (29,000+ Collection - Instant)" );
+  AppendMenuA( hSubDiceMode, MF_STRING | ( ( g_fxr_dice_mode == 1 ) ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_DICE_MODE_ONLINE,  "Download Random &Online Game (Live Cloud Stream)" );
+
+  /* Random Offline TOSEC by Format Submenu */
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_OFFLINE_RANDOM_Z80,   "Offline TOSEC: Random .&Z80 Snapshot (Instant)" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_OFFLINE_RANDOM_TAP,   "Offline TOSEC: Random .&TAP Cassette Tape" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_OFFLINE_RANDOM_DSK,   "Offline TOSEC: Random +3 .&DSK Floppy Disk" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_OFFLINE_RANDOM_TRD,   "Offline TOSEC: Random Pentagon .&TRD Disk" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_OFFLINE_RANDOM_TZX,   "Offline TOSEC: Random .T&ZX Turbo Tape" );
   AppendMenuA( hSubRndFmt, MF_SEPARATOR, 0, NULL );
-  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_RANDOM_LOCAL, "Random &Bundled Classic Game" );
+  AppendMenuA( hSubRndFmt, MF_STRING, IDM_FXR_OFFLINE_RANDOM_LOCAL, "Random &Bundled Classic Game" );
 
+  /* Online Cloud Downloads Submenu */
   AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_IA_TOSEC,    "Internet Archive - &TOSEC 44,528-Game Cloud (All Formats)" );
   AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_IA_LIB,      "Internet Archive - &ZX Spectrum Software Library (12,305 .Z80s)" );
   AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_VTRDOS,      "&Virtual TR-DOS - Pentagon 128 Full Disks (vtrd.in .TRD)" );
@@ -4435,8 +4810,6 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_TRD,     "Cloud Download: Random Pentagon .T&RD Disk" );
   AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_ONLINE_FMT_TZX,     "Cloud Download: Random .TZX T&urbo Tape" );
   AppendMenuA( hSubCloud, MF_SEPARATOR, 0, NULL );
-  AppendMenuA( hSubCloud, MF_STRING | ( g_fxr_force_online_dice ? MF_CHECKED : MF_UNCHECKED ),
-               IDM_FXR_ONLINE_TOGGLE_DICE, "Top-Bar Dice Button: Always Use &Online Cloud Downloads" );
   AppendMenuA( hSubCloud, MF_STRING, IDM_FXR_OPEN_DOWNLOADS_DIR, "&Open Downloaded Games Folder (games/downloads)..." );
 
   /* Scan bundled games/ folder */
@@ -4483,17 +4856,21 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_TIPSHOP, "The &Tipshop (.POK Trainers && Cheats)" );
   AppendMenuA( hSubArch, MF_STRING, IDM_FXR_ARCHIVE_VTRDOS,  "&Virtual TR-DOS (.TRD / .SCL Disks)" );
 
-  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_RANDOM_ANY,        "Load &Random Game (Local / Auto-Cloud)\tF11" );
-  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_ONLINE_RANDOM_ANY, "&Download Random Online Game (Live Cloud)\tShift+F11" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubCloud,       "Online Random by &Host / Format (No TOSEC Needed)" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubRndFmt,      "Random Game by &Format" );
-  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_TOSEC_SEARCH_DLG,  "&Search TOSEC 29,000+ Archive..." );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_OFFLINE_RANDOM_ANY, "🎲 Load &Random Game from Offline TOSEC (29k Collection)\tF11" );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_ONLINE_RANDOM_ANY,  "🌐 &Download Random Online Game (Live Cloud)\tShift+F11" );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_DL_GAMES_DLG,       "📁 &Downloaded Games Library (games/downloads)..." );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDlGames,      "📁 &Recent Downloaded Games" );
+  AppendMenuA( hMenuGames, MF_STRING, IDM_FXR_TOSEC_SEARCH_DLG,   "🔍 &Search Offline TOSEC 29,000+ Archive..." );
   AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubSnap,        "Featured &Snapshots (.Z80)" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubTape,        "Featured &Tapes (.TAP / .TZX)" );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDisk,        "Featured &Disks (+3 .DSK && TR-DOS .TRD)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubRndFmt,       "Offline TOSEC by &Format" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDiceMode,     "Emerald &Dice Button Mode" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubCloud,        "&Online Cloud Downloads (No TOSEC Needed)" );
   AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
-  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubArch,        "Legitimate &Online Game Archives" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubSnap,         "Featured &Snapshots (.Z80)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubTape,         "Featured &Tapes (.TAP / .TZX)" );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubDisk,         "Featured &Disks (+3 .DSK && TR-DOS .TRD)" );
+  AppendMenuA( hMenuGames, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuGames, MF_POPUP,  (UINT_PTR)hSubArch,         "Legitimate &Online Game Archives" );
 
   /* 2. Build "Easy Cheat" Menu */
   HMENU hMenuCheat = CreatePopupMenu();
@@ -4627,6 +5004,20 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
     return 1;
   }
 
+  /* Downloaded Game clicked from Recent Downloaded Games submenu */
+  if( cmd_id >= IDM_FXR_DL_GAME_BASE &&
+      cmd_id < (unsigned int)( IDM_FXR_DL_GAME_BASE + 250 ) ) {
+    int idx = (int)( cmd_id - IDM_FXR_DL_GAME_BASE );
+    if( idx >= 0 && idx < g_fxr_dl_count ) {
+      const fxr_downloaded_game_t *g = &g_fxr_dl_games[idx];
+      fxr_load_file_direct( g->full_path, g->title, g->fmt );
+      char st[256];
+      snprintf( st, sizeof( st ), "Downloaded: %s", g->title );
+      fxr_update_window_title( st );
+    }
+    return 1;
+  }
+
   /* Curated 1-Click Cheat clicked */
   if( cmd_id >= IDM_FXR_CHEAT_CURATED_0 &&
       cmd_id < (unsigned int)( IDM_FXR_CHEAT_CURATED_0 + FXR_CHEAT_COUNT ) ) {
@@ -4635,22 +5026,52 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   }
 
   switch( cmd_id ) {
-  case IDM_FXR_DICE_BTN:
-  case IDM_FXR_RANDOM_ANY:
-    if( g_fxr_force_online_dice || ( GetKeyState( VK_SHIFT ) & 0x8000 ) ) {
-      if( !fxr_download_random_online_game( NULL ) ) {
-        fxr_load_random_game( NULL, 0 );
+  case IDM_FXR_DICE_BTN: {
+    int mode = g_fxr_dice_mode;
+    if( GetKeyState( VK_SHIFT ) & 0x8000 ) {
+      mode = !mode; /* Shift-click inverts mode! */
+    }
+    if( mode == 0 ) {
+      /* Mode 0: Offline TOSEC 29,000+ Game (Instant local play) */
+      if( !fxr_load_random_offline_tosec_game( NULL ) ) {
+        fxr_download_random_online_game( NULL );
       }
     } else {
-      fxr_load_random_game( NULL, 0 );
+      /* Mode 1: Online Live Cloud Game */
+      if( !fxr_download_random_online_game( NULL ) ) {
+        fxr_load_random_offline_tosec_game( NULL );
+      }
     }
     return 1;
-  case IDM_FXR_RANDOM_Z80:   fxr_load_random_game( "z80", 0 ); return 1;
-  case IDM_FXR_RANDOM_TAP:   fxr_load_random_game( "tap", 0 ); return 1;
-  case IDM_FXR_RANDOM_DSK:   fxr_load_random_game( "dsk", 0 ); return 1;
-  case IDM_FXR_RANDOM_TRD:   fxr_load_random_game( "trd", 0 ); return 1;
-  case IDM_FXR_RANDOM_TZX:   fxr_load_random_game( "tzx", 0 ); return 1;
-  case IDM_FXR_RANDOM_LOCAL: fxr_load_random_game( NULL,  1 ); return 1;
+  }
+  case IDM_FXR_OFFLINE_RANDOM_ANY: fxr_load_random_offline_tosec_game( NULL );    return 1;
+  case IDM_FXR_OFFLINE_RANDOM_Z80: fxr_load_random_offline_tosec_game( "z80" );   return 1;
+  case IDM_FXR_OFFLINE_RANDOM_TAP: fxr_load_random_offline_tosec_game( "tap" );   return 1;
+  case IDM_FXR_OFFLINE_RANDOM_DSK: fxr_load_random_offline_tosec_game( "dsk" );   return 1;
+  case IDM_FXR_OFFLINE_RANDOM_TRD: fxr_load_random_offline_tosec_game( "trd" );   return 1;
+  case IDM_FXR_OFFLINE_RANDOM_TZX: fxr_load_random_offline_tosec_game( "tzx" );   return 1;
+  case IDM_FXR_OFFLINE_RANDOM_LOCAL: fxr_load_random_game( NULL, 1 );              return 1;
+
+  case IDM_FXR_DL_GAMES_DLG: fxr_open_downloaded_games_dialog( hWnd ); return 1;
+  case IDM_FXR_DL_GAMES_RND: fxr_load_random_downloaded_game();         return 1;
+
+  case IDM_FXR_DICE_MODE_OFFLINE:
+    g_fxr_dice_mode = 0;
+    if( g_fxr_hSubDiceMode ) {
+      CheckMenuItem( g_fxr_hSubDiceMode, IDM_FXR_DICE_MODE_OFFLINE, MF_BYCOMMAND | MF_CHECKED );
+      CheckMenuItem( g_fxr_hSubDiceMode, IDM_FXR_DICE_MODE_ONLINE,  MF_BYCOMMAND | MF_UNCHECKED );
+    }
+    fxr_update_window_title( "Dice Button Mode: Offline TOSEC 29k (Instant)" );
+    return 1;
+
+  case IDM_FXR_DICE_MODE_ONLINE:
+    g_fxr_dice_mode = 1;
+    if( g_fxr_hSubDiceMode ) {
+      CheckMenuItem( g_fxr_hSubDiceMode, IDM_FXR_DICE_MODE_OFFLINE, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hSubDiceMode, IDM_FXR_DICE_MODE_ONLINE,  MF_BYCOMMAND | MF_CHECKED );
+    }
+    fxr_update_window_title( "Dice Button Mode: Online Cloud Download" );
+    return 1;
 
   case IDM_FXR_ONLINE_RANDOM_ANY: fxr_download_random_online_game( NULL );       return 1;
   case IDM_FXR_ONLINE_IA_TOSEC:   fxr_download_random_online_game( "ia_tosec" ); return 1;
@@ -4663,12 +5084,12 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   case IDM_FXR_ONLINE_FMT_TZX:    fxr_download_random_online_game( "tzx" );      return 1;
 
   case IDM_FXR_ONLINE_TOGGLE_DICE:
-    g_fxr_force_online_dice = !g_fxr_force_online_dice;
-    if( g_fxr_hSubCloud ) {
-      CheckMenuItem( g_fxr_hSubCloud, IDM_FXR_ONLINE_TOGGLE_DICE,
-                     MF_BYCOMMAND | ( g_fxr_force_online_dice ? MF_CHECKED : MF_UNCHECKED ) );
+    g_fxr_dice_mode = !g_fxr_dice_mode;
+    if( g_fxr_hSubDiceMode ) {
+      CheckMenuItem( g_fxr_hSubDiceMode, IDM_FXR_DICE_MODE_OFFLINE, MF_BYCOMMAND | ( g_fxr_dice_mode == 0 ? MF_CHECKED : MF_UNCHECKED ) );
+      CheckMenuItem( g_fxr_hSubDiceMode, IDM_FXR_DICE_MODE_ONLINE,  MF_BYCOMMAND | ( g_fxr_dice_mode == 1 ? MF_CHECKED : MF_UNCHECKED ) );
     }
-    fxr_update_window_title( g_fxr_force_online_dice ? "Dice Button: Online Cloud Mode" : "Dice Button: Auto/Local Mode" );
+    fxr_update_window_title( g_fxr_dice_mode == 1 ? "Dice Button: Online Cloud Mode" : "Dice Button: Offline TOSEC 29k Mode" );
     return 1;
 
   case IDM_FXR_OPEN_DOWNLOADS_DIR: {

@@ -214,7 +214,11 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
         return 0;
       }
       if( wParam == VK_F11 ) {
-        quest_vr_handle_win32_menu( 40001, hWnd );
+        if( GetKeyState( VK_SHIFT ) & 0x8000 ) {
+          quest_vr_handle_win32_menu( 40010, hWnd ); /* Shift+F11 = Download Random Online Game */
+        } else {
+          quest_vr_handle_win32_menu( 40001, hWnd ); /* F11 = Instant Offline TOSEC Random Game */
+        }
         return 0;
       }
       if( wParam == VK_F12 ) {
@@ -1158,12 +1162,14 @@ win32ui_window_resize( HWND hWnd, WPARAM wParam, LPARAM lParam )
 }
 
 /* Handler for the main window's WM_SIZING notification.
-   Allows smooth free resizing with the window edge resize arrow while enforcing a minimum 1x size. */
+   Locks the window resizing arrow strictly to 4:3 aspect ratio (DISPLAY_ASPECT_WIDTH : DISPLAY_SCREEN_HEIGHT)
+   so the Spectrum display smoothly stretches edge-to-edge with ZERO black borders! */
 static BOOL
 win32ui_window_resizing( HWND hWnd, WPARAM wParam, LPARAM lParam )
 {
   RECT *selr, wr, cr, statr;
-  int w_ofs, h_ofs, min_w, min_h;
+  int w_ofs, h_ofs;
+  int cur_w, cur_h;
   (void)hWnd;
 
   if( quest_vr_is_fullscreen() ) return FALSE;
@@ -1177,21 +1183,35 @@ win32ui_window_resizing( HWND hWnd, WPARAM wParam, LPARAM lParam )
   h_ofs = ( wr.bottom - wr.top ) - ( cr.bottom - cr.top );
   if( settings_current.statusbar ) h_ofs += ( statr.bottom - statr.top );
 
-  min_w = DISPLAY_ASPECT_WIDTH + w_ofs;
-  min_h = DISPLAY_SCREEN_HEIGHT + h_ofs;
+  cur_w = ( selr->right - selr->left ) - w_ofs;
+  cur_h = ( selr->bottom - selr->top ) - h_ofs;
 
-  if( selr->right - selr->left < min_w ) {
-    if( wParam == WMSZ_LEFT || wParam == WMSZ_TOPLEFT || wParam == WMSZ_BOTTOMLEFT )
-      selr->left = selr->right - min_w;
-    else
-      selr->right = selr->left + min_w;
-  }
+  if( cur_w < DISPLAY_ASPECT_WIDTH ) cur_w = DISPLAY_ASPECT_WIDTH;
+  if( cur_h < DISPLAY_SCREEN_HEIGHT ) cur_h = DISPLAY_SCREEN_HEIGHT;
 
-  if( selr->bottom - selr->top < min_h ) {
-    if( wParam == WMSZ_TOP || wParam == WMSZ_TOPLEFT || wParam == WMSZ_TOPRIGHT )
-      selr->top = selr->bottom - min_h;
-    else
-      selr->bottom = selr->top + min_h;
+  /* Maintain exact 4:3 (320 : 240) ratio based on the edge/corner being dragged */
+  if( wParam == WMSZ_LEFT || wParam == WMSZ_RIGHT ) {
+    cur_h = ( cur_w * DISPLAY_SCREEN_HEIGHT + ( DISPLAY_ASPECT_WIDTH / 2 ) ) / DISPLAY_ASPECT_WIDTH;
+    selr->bottom = selr->top + cur_h + h_ofs;
+  } else if( wParam == WMSZ_TOP || wParam == WMSZ_BOTTOM ) {
+    cur_w = ( cur_h * DISPLAY_ASPECT_WIDTH + ( DISPLAY_SCREEN_HEIGHT / 2 ) ) / DISPLAY_SCREEN_HEIGHT;
+    selr->right = selr->left + cur_w + w_ofs;
+  } else if( wParam == WMSZ_TOPLEFT ) {
+    cur_h = ( cur_w * DISPLAY_SCREEN_HEIGHT + ( DISPLAY_ASPECT_WIDTH / 2 ) ) / DISPLAY_ASPECT_WIDTH;
+    selr->left = selr->right - cur_w - w_ofs;
+    selr->top = selr->bottom - cur_h - h_ofs;
+  } else if( wParam == WMSZ_TOPRIGHT ) {
+    cur_h = ( cur_w * DISPLAY_SCREEN_HEIGHT + ( DISPLAY_ASPECT_WIDTH / 2 ) ) / DISPLAY_ASPECT_WIDTH;
+    selr->right = selr->left + cur_w + w_ofs;
+    selr->top = selr->bottom - cur_h - h_ofs;
+  } else if( wParam == WMSZ_BOTTOMLEFT ) {
+    cur_h = ( cur_w * DISPLAY_SCREEN_HEIGHT + ( DISPLAY_ASPECT_WIDTH / 2 ) ) / DISPLAY_ASPECT_WIDTH;
+    selr->left = selr->right - cur_w - w_ofs;
+    selr->bottom = selr->top + cur_h + h_ofs;
+  } else if( wParam == WMSZ_BOTTOMRIGHT ) {
+    cur_h = ( cur_w * DISPLAY_SCREEN_HEIGHT + ( DISPLAY_ASPECT_WIDTH / 2 ) ) / DISPLAY_ASPECT_WIDTH;
+    selr->right = selr->left + cur_w + w_ofs;
+    selr->bottom = selr->top + cur_h + h_ofs;
   }
 
   return TRUE;

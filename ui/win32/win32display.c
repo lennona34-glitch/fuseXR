@@ -157,6 +157,12 @@ blit( void )
       int dst_x = ( avail_w - dst_w ) / 2;
       int dst_y = ( avail_h - dst_h ) / 2;
 
+      /* If difference is small rounding (<= 3 pixels), stretch across entire available area: NO black borders! */
+      if( abs( dst_w - avail_w ) <= 3 && abs( dst_h - avail_h ) <= 3 ) {
+        dst_x = 0; dst_y = 0;
+        dst_w = avail_w; dst_h = avail_h;
+      }
+
       if( dst_x > 0 ) {
         PatBlt( dest_dc, 0, 0, dst_x, avail_h, BLACKNESS );
         PatBlt( dest_dc, dst_x + dst_w, 0, avail_w - ( dst_x + dst_w ), avail_h, BLACKNESS );
