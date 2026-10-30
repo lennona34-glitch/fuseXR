@@ -104,6 +104,15 @@ static void win32display_scale_dirty_areas( void );
 static void register_scalers( int force_scaler );
 static void win32display_load_gfx_mode( void );
 
+static float
+win32display_get_scaler_scale( void )
+{
+  float sf = ( current_scaler != SCALER_NUM ) ? scaler_get_scaling_factor( current_scaler ) : 1.0f;
+  int isc = ( image_scale > 0 ) ? image_scale : 1;
+  if( sf <= 0.0f ) sf = 1.0f;
+  return sf / (float)isc;
+}
+
 void
 blit( void )
 {
@@ -122,7 +131,7 @@ blit( void )
   height = ps.rcPaint.bottom - ps.rcPaint.top;
 
   if( width && height ) {
-    float scale = ( image_scale > 0 ) ? ( (float)win32display_current_size / image_scale ) : 1.0f;
+    float scale = win32display_get_scaler_scale();
     int src_w = (int)( scale * image_width );
     int src_h = (int)( scale * image_height );
     RECT cr;
@@ -138,7 +147,7 @@ blit( void )
     src_dc = CreateCompatibleDC( dest_dc );
     src_bmp = SelectObject( src_dc, fuse_BMP );
 
-    if( src_w > 0 && src_h > 0 && ( avail_w > src_w + 4 || avail_h > src_h + 4 ) ) {
+    if( src_w > 0 && src_h > 0 && ( avail_w != src_w || avail_h != src_h ) ) {
       int dst_w = avail_w;
       int dst_h = ( avail_w * DISPLAY_SCREEN_HEIGHT ) / DISPLAY_ASPECT_WIDTH;
       if( dst_h > avail_h ) {
@@ -170,8 +179,8 @@ blit( void )
 
   EndPaint( fuse_hWnd, &ps );
 
-  if( win32_pixdata ) {
-    float scale = (float)win32display_current_size / image_scale;
+  if( win32_pixdata && image_scale > 0 ) {
+    float scale = win32display_get_scaler_scale();
     int scaled_w = (int)( scale * image_width );
     int scaled_h = (int)( scale * image_height );
     quest_vr_submit_bgra32( (const unsigned char *)win32_pixdata,
@@ -268,25 +277,28 @@ int
 win32display_drawing_area_resize( int width, int height, int force_scaler )
 {
   int size;
+  scaler_type best;
+  (void)force_scaler;
 
   if( !machine_current ) return 0;
 
   size = width / DISPLAY_ASPECT_WIDTH;
   if( size > height / DISPLAY_SCREEN_HEIGHT )
     size = height / DISPLAY_SCREEN_HEIGHT;
-
   if( size < 1 ) size = 1;
   if( size > MAX_SCALE ) size = MAX_SCALE;
 
-  /* If we're the same size as before, still repaint for maximized/fullscreen layout */
-  if( size == win32display_current_size ) {
-    InvalidateRect( fuse_hWnd, NULL, TRUE );
-    return 0;
+  /* Adapt resolution (2x/3x/4x) strictly WITHIN the user's chosen CRT filter family
+     (e.g. TV 2x <-> TV 3x <-> TV 4x, PAL TV 2x <-> PAL TV 3x <-> PAL TV 4x)
+     without ever losing the CRT filter or resizing the window! */
+  if( current_scaler != SCALER_NUM ) {
+    best = scaler_for_size( current_scaler, size );
+    if( best != current_scaler && scaler_is_supported( best ) ) {
+      scaler_activate_scaler( best );
+      quest_vr_notify_scaler_changed( (int)best );
+      win32display_current_size = (int)scaler_get_scaling_factor( current_scaler );
+    }
   }
-
-  win32display_current_size = size;
-
-  register_scalers( force_scaler );
 
   display_refresh_all();
   InvalidateRect( fuse_hWnd, NULL, TRUE );
@@ -322,6 +334,7 @@ static void
 register_scalers( int force_scaler )
 {
   scaler_type scaler;
+  (void)force_scaler;
 
   scaler_register_clear();
 
@@ -359,19 +372,9 @@ register_scalers( int force_scaler )
   scaler =
     scaler_is_supported( current_scaler ) ? current_scaler : SCALER_NORMAL;
 
-  if( force_scaler ) {
-    switch( win32display_current_size ) {
-    case 1: scaler = machine_current->timex ? SCALER_HALF : SCALER_NORMAL;
-      break;
-    case 2: scaler = machine_current->timex ? SCALER_NORMAL : SCALER_DOUBLESIZE;
-      break;
-    case 3: scaler = machine_current->timex ? SCALER_TIMEX1_5X :
-                                              SCALER_TRIPLESIZE;
-      break;
-    case 4: scaler = machine_current->timex ? SCALER_TIMEX2X :
-                                              SCALER_QUADSIZE;
-      break;
-    }
+  if( quest_vr_get_locked_scaler() >= 0 &&
+      scaler_is_supported( (scaler_type)quest_vr_get_locked_scaler() ) ) {
+    scaler = (scaler_type)quest_vr_get_locked_scaler();
   }
 
   scaler_select_scaler( scaler );
@@ -387,7 +390,7 @@ uidisplay_frame_end( void )
   win32display_scale_dirty_areas();
 
   if( win32_pixdata && image_scale > 0 ) {
-    float scale = (float)win32display_current_size / image_scale;
+    float scale = win32display_get_scaler_scale();
     int scaled_w = (int)( scale * image_width );
     int scaled_h = (int)( scale * image_height );
     quest_vr_submit_bgra32( (const unsigned char *)win32_pixdata,
@@ -396,20 +399,25 @@ uidisplay_frame_end( void )
   quest_vr_poll_events();
 
   if( !IsRectEmpty( &invalidated_area ) ) {
-    float scale = ( image_scale > 0 ) ? ( (float)win32display_current_size / image_scale ) : 1.0f;
+    float scale = win32display_get_scaler_scale();
     int src_w = (int)( scale * image_width );
     int src_h = (int)( scale * image_height );
     RECT cr;
     GetClientRect( fuse_hWnd, &cr );
     int avail_w = cr.right - cr.left;
     int avail_h = cr.bottom - cr.top;
+    if( settings_current.statusbar && fuse_hStatusWindow && IsWindowVisible( fuse_hStatusWindow ) ) {
+      RECT sr;
+      GetClientRect( fuse_hStatusWindow, &sr );
+      avail_h -= ( sr.bottom - sr.top );
+    }
 
     /* Invalidate asynchronously: WM_PAINT will always copy the newest
        completed DIB, while Windows coalesces invalidations if painting
        cannot keep up. UpdateWindow() would synchronously dispatch WM_PAINT
        and can therefore stall emulation once per frame. */
     display_timing_presentation_begin();
-    if( avail_w > src_w + 4 || avail_h > src_h + 4 ) {
+    if( avail_w != src_w || avail_h != src_h ) {
       InvalidateRect( fuse_hWnd, NULL, FALSE );
     } else {
       InvalidateRect( fuse_hWnd, &invalidated_area, FALSE );
@@ -506,7 +514,7 @@ win32display_add_dirty_area( int x, int y, int width, int height )
 static void
 win32display_scale_dirty_areas( void )
 {
-  float scale = (float)win32display_current_size / image_scale;
+  float scale = win32display_get_scaler_scale();
   size_t i;
 
   if( !dirty_area_count ) return;
@@ -671,14 +679,23 @@ uidisplay_plot16( int x, int y, libspectrum_word data,
 static void
 win32display_load_gfx_mode( void )
 {
+  static int initial_window_sized = 0;
   float scale;
 
   scale = scaler_get_scaling_factor( current_scaler );
-  win32display_drawing_area_resize( scale * image_width, scale * image_height, 0 );
-  win32ui_fuse_resize( scale * image_width, scale * image_height );
+  if( scale < 1.0f ) scale = 1.0f;
+  win32display_current_size = (int)scale;
 
-  /* Redraw the entire screen... */
+  if( !initial_window_sized && image_width > 0 && image_height > 0 ) {
+    int init_scale = ( win32display_current_size < 3 ) ? 3 : win32display_current_size;
+    initial_window_sized = 1;
+    win32ui_fuse_resize( init_scale * DISPLAY_ASPECT_WIDTH,
+                         init_scale * DISPLAY_SCREEN_HEIGHT );
+  }
+
+  /* Redraw the entire screen without shrinking or resizing the user's window */
   display_refresh_all();
+  InvalidateRect( fuse_hWnd, NULL, TRUE );
 }
 
 int

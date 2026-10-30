@@ -281,24 +281,26 @@ keypress( const input_event_key_t *event )
   }
 
   swallow = 0;
-  /* Joystick emulation via keyboard keys */
-  if ( event->spectrum_key == settings_current.joystick_keyboard_up ) {
-    swallow = joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_UP   , 1 );
+  /* Joystick emulation via keyboard keys: also keep real Spectrum keyboard keys active
+     so QAOP + Space and 67890 always work simultaneously alongside Kempston! */
+  if( settings_current.joystick_keyboard_output == JOYSTICK_TYPE_KEMPSTON ) {
+    if ( event->spectrum_key == settings_current.joystick_keyboard_up ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_UP   , 1 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_down ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_DOWN , 1 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_left ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_LEFT , 1 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_right ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_RIGHT, 1 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_fire ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_FIRE , 1 );
+    }
   }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_down ) {
-    swallow = joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_DOWN , 1 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_left ) {
-    swallow = joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_LEFT , 1 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_right ) {
-    swallow = joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_RIGHT, 1 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_fire ) {
-    swallow = joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_FIRE , 1 );
-  }
-
-  if( swallow ) return 0;
+  (void)swallow;
 
   if( settings_current.recreated_spectrum ) {
     recreated_keypress( event->spectrum_key );
@@ -319,20 +321,22 @@ keyrelease( const input_event_key_t *event )
   }
 
   /* Joystick emulation via keyboard keys */
-  if( event->spectrum_key == settings_current.joystick_keyboard_up ) {
-    joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_UP   , 0 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_down ) {
-    joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_DOWN , 0 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_left ) {
-    joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_LEFT , 0 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_right ) {
-    joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_RIGHT, 0 );
-  }
-  else if( event->spectrum_key == settings_current.joystick_keyboard_fire ) {
-    joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_FIRE , 0 );
+  if( settings_current.joystick_keyboard_output == JOYSTICK_TYPE_KEMPSTON ) {
+    if( event->spectrum_key == settings_current.joystick_keyboard_up ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_UP   , 0 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_down ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_DOWN , 0 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_left ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_LEFT , 0 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_right ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_RIGHT, 0 );
+    }
+    else if( event->spectrum_key == settings_current.joystick_keyboard_fire ) {
+      joystick_press( JOYSTICK_KEYBOARD, JOYSTICK_BUTTON_FIRE , 0 );
+    }
   }
 
   return 0;

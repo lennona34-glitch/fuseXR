@@ -77,6 +77,10 @@ void quest_vr_populate_win32_menus( void *hWnd );
 int quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd );
 int quest_vr_should_suppress_error( void );
 void quest_vr_toggle_fullscreen( void *hWnd );
+int quest_vr_is_fullscreen( void );
+void quest_vr_on_mouse_move( void *hWnd, int x, int y );
+void quest_vr_notify_scaler_changed( int scaler );
+int quest_vr_get_locked_scaler( void );
 
 #ifdef __cplusplus
 }

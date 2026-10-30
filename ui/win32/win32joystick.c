@@ -64,7 +64,7 @@ ui_joystick_init( void )
   if( retval > 0 ) {
 
     if( joyGetPos( JOYSTICKID1, &joyinfo ) == JOYERR_NOERROR ) {
-      if( joySetCapture( fuse_hWnd, JOYSTICKID1, 0, FALSE ) != JOYERR_NOERROR ) {
+      if( joySetCapture( fuse_hWnd, JOYSTICKID1, 20, TRUE ) != JOYERR_NOERROR ) {
         ui_error( UI_ERROR_ERROR, "Couldn't start capture for joystick 1" );
         return 0;
       }
@@ -79,7 +79,7 @@ ui_joystick_init( void )
     retval = 2;
 
     if( joyGetPos( JOYSTICKID2, &joyinfo ) == JOYERR_NOERROR ) {
-      if( joySetCapture( fuse_hWnd, JOYSTICKID2, 0, FALSE ) != JOYERR_NOERROR ) {
+      if( joySetCapture( fuse_hWnd, JOYSTICKID2, 20, TRUE ) != JOYERR_NOERROR ) {
         ui_error( UI_ERROR_ERROR, "Couldn't start capture for joystick 2" );
         return 1;
       }
@@ -136,18 +136,34 @@ win32joystick_move( int which_joystick, unsigned short pos_x,
 static void
 do_axis( int which, WORD value, input_key negative, input_key positive )
 {
+  static int prev_axis_dir[2][2] = { { 0, 0 }, { 0, 0 } };
+  int axis_idx = ( negative == INPUT_JOYSTICK_LEFT ) ? 0 : 1;
+  int joy_idx = ( which >= 0 && which < 2 ) ? which : 0;
+  int new_dir = 0;
   input_event_t event1, event2;
+
+  if( value > 49152 ) {
+    new_dir = 1;
+  } else if( value < 16384 ) {
+    new_dir = -1;
+  } else {
+    new_dir = 0;
+  }
+
+  /* Only emit joystick press/release events when the axis state actually changes,
+     so an idle USB controller never spams release events that cancel keyboard keys! */
+  if( new_dir == prev_axis_dir[joy_idx][axis_idx] ) return;
+  prev_axis_dir[joy_idx][axis_idx] = new_dir;
 
   event1.types.joystick.which = event2.types.joystick.which = which;
 
   event1.types.joystick.button = negative;
   event2.types.joystick.button = positive;
 
-  /* MS Windows sends a value between 0 and 65535, hopefully those will work */
-  if( value > 49152 ) {
+  if( new_dir > 0 ) {
     event1.type = INPUT_EVENT_JOYSTICK_RELEASE;
     event2.type = INPUT_EVENT_JOYSTICK_PRESS;
-  } else if( value < 16384 ) {
+  } else if( new_dir < 0 ) {
     event1.type = INPUT_EVENT_JOYSTICK_PRESS;
     event2.type = INPUT_EVENT_JOYSTICK_RELEASE;
   } else {

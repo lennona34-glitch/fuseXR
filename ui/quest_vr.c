@@ -2308,6 +2308,29 @@ quest_vr_init( void )
     snprintf( g_qvr.url_buf, sizeof( g_qvr.url_buf ), "http://127.0.0.1:8765/" );
     snprintf( g_qvr.detail_buf, sizeof( g_qvr.detail_buf ), "Off" );
     g_qvr.initialized = 1;
+
+    /* Ensure Kempston Joystick is active by default alongside keyboard */
+    settings_current.joy_kempston = 1;
+    settings_current.joystick_1_output = JOYSTICK_TYPE_KEMPSTON;
+    settings_current.joystick_2_output = JOYSTICK_TYPE_KEMPSTON;
+    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_KEMPSTON;
+
+#ifdef WIN32
+    /* Restore persisted CRT / Graphics Filter if previously selected by user */
+    if( g_qvr.base_dir[0] ) {
+      char cfg_path[512];
+      FILE *fp;
+      snprintf( cfg_path, sizeof( cfg_path ), "%s/games/_fxr_scaler.cfg", g_qvr.base_dir );
+      fp = fopen( cfg_path, "rb" );
+      if( fp ) {
+        int saved_sc = -1;
+        if( fscanf( fp, "%d", &saved_sc ) == 1 && saved_sc >= 0 && saved_sc < (int)SCALER_NUM ) {
+          quest_vr_notify_scaler_changed( saved_sc );
+        }
+        fclose( fp );
+      }
+    }
+#endif
   }
 
   quest_vr_apply_settings();
@@ -2741,6 +2764,9 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
 #define IDM_FXR_FILT_SUPEREAGLE   40226
 #define IDM_FXR_FILT_ADVMAME2X    40227
 #define IDM_FXR_FILT_ADVMAME3X    40228
+#define IDM_FXR_FILT_PALTV3X      40229
+#define IDM_FXR_FILT_DOTMATRIX    40230
+#define IDM_FXR_FILT_HQ3X         40231
 
 #define IDM_FXR_JOY_KEMPSTON      40240
 #define IDM_FXR_JOY_CURSOR        40241
@@ -2829,6 +2855,9 @@ static HMENU g_fxr_saved_menu = NULL;
 static LONG g_fxr_saved_style = 0;
 static WINDOWPLACEMENT g_fxr_saved_wp = { sizeof( WINDOWPLACEMENT ) };
 static HMENU g_fxr_hSubCloud = NULL;
+static HMENU g_fxr_hSubFilt = NULL;
+static HMENU g_fxr_hSubJoy = NULL;
+static int g_fxr_locked_scaler = -1;
 static HBITMAP g_fxr_dice_bmp = NULL;
 
 int
@@ -2837,13 +2866,83 @@ quest_vr_should_suppress_error( void )
   return quest_vr_is_running() || g_fxr_suppress_ui_error;
 }
 
+int
+quest_vr_is_fullscreen( void )
+{
+  return g_fxr_fullscreen;
+}
+
+int
+quest_vr_get_locked_scaler( void )
+{
+  return g_fxr_locked_scaler;
+}
+
+void
+quest_vr_notify_scaler_changed( int scaler )
+{
+  if( scaler < 0 || scaler >= (int)SCALER_NUM ) return;
+  g_fxr_locked_scaler = scaler;
+#ifdef WIN32
+  if( g_fxr_hSubFilt ) {
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_TV2X,       MF_BYCOMMAND | ( scaler == (int)SCALER_TV2X       ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_TV3X,       MF_BYCOMMAND | ( ( scaler == (int)SCALER_TV3X || scaler == (int)SCALER_TV4X ) ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_PALTV,      MF_BYCOMMAND | ( scaler == (int)SCALER_PALTV2X    ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_PALTV3X,    MF_BYCOMMAND | ( ( scaler == (int)SCALER_PALTV3X || scaler == (int)SCALER_PALTV4X ) ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_DOTMATRIX,  MF_BYCOMMAND | ( scaler == (int)SCALER_DOTMATRIX  ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_HQ3X,       MF_BYCOMMAND | ( ( scaler == (int)SCALER_HQ2X || scaler == (int)SCALER_HQ3X || scaler == (int)SCALER_HQ4X ) ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_NORMAL,     MF_BYCOMMAND | ( scaler == (int)SCALER_NORMAL     ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_2X,         MF_BYCOMMAND | ( scaler == (int)SCALER_DOUBLESIZE ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_3X,         MF_BYCOMMAND | ( ( scaler == (int)SCALER_TRIPLESIZE || scaler == (int)SCALER_QUADSIZE ) ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_SUPEREAGLE, MF_BYCOMMAND | ( scaler == (int)SCALER_SUPEREAGLE ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_ADVMAME2X,  MF_BYCOMMAND | ( scaler == (int)SCALER_ADVMAME2X  ? MF_CHECKED : MF_UNCHECKED ) );
+    CheckMenuItem( g_fxr_hSubFilt, IDM_FXR_FILT_ADVMAME3X,  MF_BYCOMMAND | ( scaler == (int)SCALER_ADVMAME3X  ? MF_CHECKED : MF_UNCHECKED ) );
+  }
+  if( g_qvr.base_dir[0] ) {
+    char cfg_path[512];
+    FILE *fp;
+    snprintf( cfg_path, sizeof( cfg_path ), "%s/games/_fxr_scaler.cfg", g_qvr.base_dir );
+    fp = fopen( cfg_path, "wb" );
+    if( fp ) {
+      fprintf( fp, "%d\n", scaler );
+      fclose( fp );
+    }
+  }
+#endif
+}
+
+void
+quest_vr_on_mouse_move( void *hWnd_ptr, int x, int y )
+{
+#ifdef WIN32
+  HWND hWnd = (HWND)hWnd_ptr;
+  (void)x;
+  if( !g_fxr_fullscreen || !hWnd || !g_fxr_saved_menu ) return;
+
+  if( y <= 14 && GetMenu( hWnd ) == NULL ) {
+    SetMenu( hWnd, g_fxr_saved_menu );
+    DrawMenuBar( hWnd );
+    InvalidateRect( hWnd, NULL, TRUE );
+  } else if( y > 48 && GetMenu( hWnd ) != NULL ) {
+    SetMenu( hWnd, NULL );
+    InvalidateRect( hWnd, NULL, TRUE );
+  }
+#else
+  (void)hWnd_ptr;
+  (void)x;
+  (void)y;
+#endif
+}
+
 void
 quest_vr_toggle_fullscreen( void *hWnd_ptr )
 {
 #ifdef WIN32
   HWND hWnd = (HWND)hWnd_ptr;
+  HWND hStat;
   if( !hWnd ) hWnd = g_fxr_main_hwnd;
   if( !hWnd ) return;
+  hStat = FindWindowExA( hWnd, NULL, "msctls_statusbar32", NULL );
 
   if( !g_fxr_fullscreen ) {
     MONITORINFO mi;
@@ -2853,8 +2952,9 @@ quest_vr_toggle_fullscreen( void *hWnd_ptr )
 
     g_fxr_saved_style = GetWindowLongA( hWnd, GWL_STYLE );
     GetWindowPlacement( hWnd, &g_fxr_saved_wp );
-    g_fxr_saved_menu = GetMenu( hWnd );
+    if( GetMenu( hWnd ) ) g_fxr_saved_menu = GetMenu( hWnd );
     if( g_fxr_saved_menu ) SetMenu( hWnd, NULL );
+    if( hStat ) ShowWindow( hStat, SW_HIDE );
 
     g_fxr_fullscreen = 1;
     SetWindowLongA( hWnd, GWL_STYLE,
@@ -2869,7 +2969,9 @@ quest_vr_toggle_fullscreen( void *hWnd_ptr )
     g_fxr_fullscreen = 0;
     if( g_fxr_saved_menu ) {
       SetMenu( hWnd, g_fxr_saved_menu );
-      g_fxr_saved_menu = NULL;
+    }
+    if( hStat && settings_current.statusbar ) {
+      ShowWindow( hStat, SW_SHOW );
     }
     SetWindowLongA( hWnd, GWL_STYLE, g_fxr_saved_style );
     SetWindowPlacement( hWnd, &g_fxr_saved_wp );
@@ -4415,6 +4517,8 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   HMENU hSubMach   = CreatePopupMenu();
   HMENU hSubFilt   = CreatePopupMenu();
   HMENU hSubJoy    = CreatePopupMenu();
+  g_fxr_hSubFilt   = hSubFilt;
+  g_fxr_hSubJoy    = hSubJoy;
 
   AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_128,      "ZX Spectrum &128K (Toastrack)" );
   AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_PLUS3,    "ZX Spectrum +&3 (3\" Floppy Disk)" );
@@ -4423,23 +4527,26 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_PENTAGON, "&Pentagon 128 (TR-DOS)" );
   AppendMenuA( hSubMach, MF_STRING, IDM_FXR_MACH_SCORPION, "&Scorpion ZS 256" );
 
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_TV3X,       "T&V 3x (Crisp CRT Scanlines)" );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_TV2X,       "&TV 2x (CRT Scanlines)" );
-  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_TV3X,       "T&V 3x (CRT Scanlines)" );
-  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_PALTV,      "&PAL TV (Composite)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_PALTV3X,    "P&AL TV 3x (Composite CRT)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_PALTV,      "&PAL TV 2x (Composite CRT)" );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_DOTMATRIX,  "&Dot Matrix" );
   AppendMenuA( hSubFilt, MF_SEPARATOR, 0, NULL );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_NORMAL,     "&Normal (1x)" );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_2X,         "&Double Size (2x)" );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_3X,         "T&riple Size (3x)" );
   AppendMenuA( hSubFilt, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_HQ3X,       "&HQ 3x Smooth" );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_SUPEREAGLE, "&SuperEagle" );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_ADVMAME2X,  "&AdvMAME 2x" );
   AppendMenuA( hSubFilt, MF_STRING, IDM_FXR_FILT_ADVMAME3X,  "A&dvMAME 3x" );
 
-  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_KEMPSTON,  "&Kempston Joystick" );
-  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_CURSOR,    "&Cursor / Protek Joystick" );
-  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_SINCLAIR1, "Sinclair &1 (Keys 6-0)" );
-  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_SINCLAIR2, "Sinclair &2 (Keys 1-5)" );
-  AppendMenuA( hSubJoy, MF_STRING, IDM_FXR_JOY_TIMEX1,    "&Timex 1 Joystick" );
+  AppendMenuA( hSubJoy, MF_STRING | MF_CHECKED, IDM_FXR_JOY_KEMPSTON,  "&Kempston Joystick (Default)" );
+  AppendMenuA( hSubJoy, MF_STRING,              IDM_FXR_JOY_CURSOR,    "&Cursor / Protek Joystick" );
+  AppendMenuA( hSubJoy, MF_STRING,              IDM_FXR_JOY_SINCLAIR1, "Sinclair &1 (Keys 6-0)" );
+  AppendMenuA( hSubJoy, MF_STRING,              IDM_FXR_JOY_SINCLAIR2, "Sinclair &2 (Keys 1-5)" );
+  AppendMenuA( hSubJoy, MF_STRING,              IDM_FXR_JOY_TIMEX1,    "&Timex 1 Joystick" );
 
   AppendMenuA( hMenuQuick, MF_POPUP,  (UINT_PTR)hSubMach,        "Switch &Machine Model (1-Click)" );
   AppendMenuA( hMenuQuick, MF_POPUP,  (UINT_PTR)hSubFilt,        "&CRT && Display Filter (1-Click)" );
@@ -4492,6 +4599,9 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
     InsertMenuItemA( hBar, GetMenuItemCount( hBar ), TRUE, &mii );
   }
 
+  if( g_fxr_locked_scaler >= 0 ) {
+    quest_vr_notify_scaler_changed( g_fxr_locked_scaler );
+  }
   DrawMenuBar( hWnd );
   fxr_update_window_title( NULL );
 #else
@@ -4640,47 +4750,46 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   case IDM_FXR_MACH_PENTAGON: machine_select_id( "pentagon" ); display_refresh_all(); fxr_update_window_title( "Pentagon 128" ); return 1;
   case IDM_FXR_MACH_SCORPION: machine_select_id( "scorpion" ); display_refresh_all(); fxr_update_window_title( "Scorpion" ); return 1;
 
-  case IDM_FXR_FILT_TV2X:       scaler_select_scaler( SCALER_TV2X );       display_refresh_all(); return 1;
-  case IDM_FXR_FILT_TV3X:       scaler_select_scaler( SCALER_TV3X );       display_refresh_all(); return 1;
-  case IDM_FXR_FILT_PALTV:      scaler_select_scaler( SCALER_PALTV2X );    display_refresh_all(); return 1;
-  case IDM_FXR_FILT_NORMAL:     scaler_select_scaler( SCALER_NORMAL );     display_refresh_all(); return 1;
-  case IDM_FXR_FILT_2X:         scaler_select_scaler( SCALER_DOUBLESIZE ); display_refresh_all(); return 1;
-  case IDM_FXR_FILT_3X:         scaler_select_scaler( SCALER_TRIPLESIZE ); display_refresh_all(); return 1;
-  case IDM_FXR_FILT_SUPEREAGLE: scaler_select_scaler( SCALER_SUPEREAGLE ); display_refresh_all(); return 1;
-  case IDM_FXR_FILT_ADVMAME2X:  scaler_select_scaler( SCALER_ADVMAME2X );  display_refresh_all(); return 1;
-  case IDM_FXR_FILT_ADVMAME3X:  scaler_select_scaler( SCALER_ADVMAME3X );  display_refresh_all(); return 1;
+  case IDM_FXR_FILT_TV2X:       quest_vr_notify_scaler_changed( SCALER_TV2X );       scaler_select_scaler( SCALER_TV2X );       display_refresh_all(); return 1;
+  case IDM_FXR_FILT_TV3X:       quest_vr_notify_scaler_changed( SCALER_TV3X );       scaler_select_scaler( SCALER_TV3X );       display_refresh_all(); return 1;
+  case IDM_FXR_FILT_PALTV:      quest_vr_notify_scaler_changed( SCALER_PALTV2X );    scaler_select_scaler( SCALER_PALTV2X );    display_refresh_all(); return 1;
+  case IDM_FXR_FILT_PALTV3X:    quest_vr_notify_scaler_changed( SCALER_PALTV3X );    scaler_select_scaler( SCALER_PALTV3X );    display_refresh_all(); return 1;
+  case IDM_FXR_FILT_DOTMATRIX:  quest_vr_notify_scaler_changed( SCALER_DOTMATRIX );  scaler_select_scaler( SCALER_DOTMATRIX );  display_refresh_all(); return 1;
+  case IDM_FXR_FILT_HQ3X:       quest_vr_notify_scaler_changed( SCALER_HQ3X );       scaler_select_scaler( SCALER_HQ3X );       display_refresh_all(); return 1;
+  case IDM_FXR_FILT_NORMAL:     quest_vr_notify_scaler_changed( SCALER_NORMAL );     scaler_select_scaler( SCALER_NORMAL );     display_refresh_all(); return 1;
+  case IDM_FXR_FILT_2X:         quest_vr_notify_scaler_changed( SCALER_DOUBLESIZE ); scaler_select_scaler( SCALER_DOUBLESIZE ); display_refresh_all(); return 1;
+  case IDM_FXR_FILT_3X:         quest_vr_notify_scaler_changed( SCALER_TRIPLESIZE ); scaler_select_scaler( SCALER_TRIPLESIZE ); display_refresh_all(); return 1;
+  case IDM_FXR_FILT_SUPEREAGLE: quest_vr_notify_scaler_changed( SCALER_SUPEREAGLE ); scaler_select_scaler( SCALER_SUPEREAGLE ); display_refresh_all(); return 1;
+  case IDM_FXR_FILT_ADVMAME2X:  quest_vr_notify_scaler_changed( SCALER_ADVMAME2X );  scaler_select_scaler( SCALER_ADVMAME2X );  display_refresh_all(); return 1;
+  case IDM_FXR_FILT_ADVMAME3X:  quest_vr_notify_scaler_changed( SCALER_ADVMAME3X );  scaler_select_scaler( SCALER_ADVMAME3X );  display_refresh_all(); return 1;
 
   case IDM_FXR_JOY_KEMPSTON:
-    settings_current.joystick_1_output = JOYSTICK_TYPE_KEMPSTON;
+  case IDM_FXR_JOY_CURSOR:
+  case IDM_FXR_JOY_SINCLAIR1:
+  case IDM_FXR_JOY_SINCLAIR2:
+  case IDM_FXR_JOY_TIMEX1: {
+    int jtype = JOYSTICK_TYPE_KEMPSTON;
+    const char *jlabel = "Joystick: Kempston";
+    if( cmd_id == IDM_FXR_JOY_CURSOR )    { jtype = JOYSTICK_TYPE_CURSOR;     jlabel = "Joystick: Cursor"; }
+    if( cmd_id == IDM_FXR_JOY_SINCLAIR1 ) { jtype = JOYSTICK_TYPE_SINCLAIR_1; jlabel = "Joystick: Sinclair 1"; }
+    if( cmd_id == IDM_FXR_JOY_SINCLAIR2 ) { jtype = JOYSTICK_TYPE_SINCLAIR_2; jlabel = "Joystick: Sinclair 2"; }
+    if( cmd_id == IDM_FXR_JOY_TIMEX1 )    { jtype = JOYSTICK_TYPE_TIMEX_1;    jlabel = "Joystick: Timex 1"; }
+    settings_current.joystick_1_output = jtype;
+    settings_current.joystick_2_output = jtype;
+    /* Keep keyboard joystick on Kempston so QAOP+Space and 67890 on the keyboard always work! */
     settings_current.joystick_keyboard_output = JOYSTICK_TYPE_KEMPSTON;
     settings_current.joy_kempston = 1;
     periph_update();
-    fxr_update_window_title( "Joystick: Kempston" );
+    if( g_fxr_hSubJoy ) {
+      CheckMenuItem( g_fxr_hSubJoy, IDM_FXR_JOY_KEMPSTON,  MF_BYCOMMAND | ( cmd_id == IDM_FXR_JOY_KEMPSTON  ? MF_CHECKED : MF_UNCHECKED ) );
+      CheckMenuItem( g_fxr_hSubJoy, IDM_FXR_JOY_CURSOR,    MF_BYCOMMAND | ( cmd_id == IDM_FXR_JOY_CURSOR    ? MF_CHECKED : MF_UNCHECKED ) );
+      CheckMenuItem( g_fxr_hSubJoy, IDM_FXR_JOY_SINCLAIR1, MF_BYCOMMAND | ( cmd_id == IDM_FXR_JOY_SINCLAIR1 ? MF_CHECKED : MF_UNCHECKED ) );
+      CheckMenuItem( g_fxr_hSubJoy, IDM_FXR_JOY_SINCLAIR2, MF_BYCOMMAND | ( cmd_id == IDM_FXR_JOY_SINCLAIR2 ? MF_CHECKED : MF_UNCHECKED ) );
+      CheckMenuItem( g_fxr_hSubJoy, IDM_FXR_JOY_TIMEX1,    MF_BYCOMMAND | ( cmd_id == IDM_FXR_JOY_TIMEX1    ? MF_CHECKED : MF_UNCHECKED ) );
+    }
+    fxr_update_window_title( jlabel );
     return 1;
-  case IDM_FXR_JOY_CURSOR:
-    settings_current.joystick_1_output = JOYSTICK_TYPE_CURSOR;
-    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_CURSOR;
-    periph_update();
-    fxr_update_window_title( "Joystick: Cursor" );
-    return 1;
-  case IDM_FXR_JOY_SINCLAIR1:
-    settings_current.joystick_1_output = JOYSTICK_TYPE_SINCLAIR_1;
-    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_SINCLAIR_1;
-    periph_update();
-    fxr_update_window_title( "Joystick: Sinclair 1" );
-    return 1;
-  case IDM_FXR_JOY_SINCLAIR2:
-    settings_current.joystick_1_output = JOYSTICK_TYPE_SINCLAIR_2;
-    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_SINCLAIR_2;
-    periph_update();
-    fxr_update_window_title( "Joystick: Sinclair 2" );
-    return 1;
-  case IDM_FXR_JOY_TIMEX1:
-    settings_current.joystick_1_output = JOYSTICK_TYPE_TIMEX_1;
-    settings_current.joystick_keyboard_output = JOYSTICK_TYPE_TIMEX_1;
-    periph_update();
-    fxr_update_window_title( "Joystick: Timex 1" );
-    return 1;
+  }
 
   case IDM_FXR_QUICK_TAPE_PLAY:   tape_toggle_play( 0 ); return 1;
   case IDM_FXR_QUICK_TAPE_REWIND: tape_rewind(); return 1;

@@ -317,6 +317,7 @@ MENU_CALLBACK( menu_options_filter )
   if( scaler != SCALER_NUM && scaler != current_scaler ) {
     uidisplay_set_next_hotswap_reason(
       UIDISPLAY_HOTSWAP_REASON_SCALER_EXPLICIT );
+    quest_vr_notify_scaler_changed( (int)scaler );
     scaler_select_scaler( scaler );
   }
 
@@ -328,6 +329,7 @@ MENU_CALLBACK( menu_options_fullscreen )
 {
   ui_widget_finish();
   settings_current.full_screen = !settings_current.full_screen;
+  quest_vr_toggle_fullscreen( NULL );
 }
 
 MENU_CALLBACK( menu_options_questvr_toggle )

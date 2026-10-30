@@ -179,6 +179,20 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       menu_file_exit( 0 );
       return 0;
 
+    case WM_SYSCOMMAND:
+      if( ( wParam & 0xFFF0 ) == SC_MAXIMIZE ) {
+        quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
+      break;
+
+    case WM_NCLBUTTONDBLCLK:
+      if( wParam == HTCAPTION ) {
+        quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
+      break;
+
     case WM_SYSKEYDOWN:
       if( wParam == VK_RETURN && ( lParam & ( 1 << 29 ) ) ) {
         quest_vr_toggle_fullscreen( hWnd );
@@ -191,6 +205,10 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       break;
 
     case WM_KEYDOWN:
+      if( wParam == VK_ESCAPE && quest_vr_is_fullscreen() ) {
+        quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
       if( wParam == VK_F10 ) {
         quest_vr_toggle_fullscreen( hWnd );
         return 0;
@@ -280,6 +298,7 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       return 0;
       
     case WM_MOUSEMOVE:
+      quest_vr_on_mouse_move( hWnd, (int)(short)LOWORD( lParam ), (int)(short)HIWORD( lParam ) );
       win32mouse_position( lParam );
       return 0;
       
@@ -1139,12 +1158,15 @@ win32ui_window_resize( HWND hWnd, WPARAM wParam, LPARAM lParam )
 }
 
 /* Handler for the main window's WM_SIZING notification.
-   The handler is an equivalent of setting window geometry in GTK */
+   Allows smooth free resizing with the window edge resize arrow while enforcing a minimum 1x size. */
 static BOOL
 win32ui_window_resizing( HWND hWnd, WPARAM wParam, LPARAM lParam )
 {
   RECT *selr, wr, cr, statr;
-  int width, height, w_ofs, h_ofs, w_max, h_max;
+  int w_ofs, h_ofs, min_w, min_h;
+  (void)hWnd;
+
+  if( quest_vr_is_fullscreen() ) return FALSE;
 
   selr = (RECT *)lParam;
   GetWindowRect( fuse_hWnd, &wr );
@@ -1155,73 +1177,21 @@ win32ui_window_resizing( HWND hWnd, WPARAM wParam, LPARAM lParam )
   h_ofs = ( wr.bottom - wr.top ) - ( cr.bottom - cr.top );
   if( settings_current.statusbar ) h_ofs += ( statr.bottom - statr.top );
 
-  /* Determine current screen from window */
-  MONITORINFO mi;
-	mi.cbSize = sizeof (MONITORINFO);
-  if (!GetMonitorInfoA(MonitorFromWindow(fuse_hWnd, MONITOR_DEFAULTTONEAREST), &mi)) {
-    return FALSE;
+  min_w = DISPLAY_ASPECT_WIDTH + w_ofs;
+  min_h = DISPLAY_SCREEN_HEIGHT + h_ofs;
+
+  if( selr->right - selr->left < min_w ) {
+    if( wParam == WMSZ_LEFT || wParam == WMSZ_TOPLEFT || wParam == WMSZ_BOTTOMLEFT )
+      selr->left = selr->right - min_w;
+    else
+      selr->right = selr->left + min_w;
   }
 
-  /* max scaler size in desktop workarea */
-  w_max = ( mi.rcWork.right - mi.rcWork.left ) - w_ofs + DISPLAY_ASPECT_WIDTH / 2;
-  w_max /= DISPLAY_ASPECT_WIDTH;
-  h_max = ( mi.rcWork.bottom - mi.rcWork.top ) - h_ofs + DISPLAY_SCREEN_HEIGHT / 2;
-  h_max /= DISPLAY_SCREEN_HEIGHT;
-
-  if( w_max < h_max ) {
-    h_max = w_max;
-  } else {
-    w_max = h_max;
-  }
-
-  /* current scaler */
-  width = selr->right - selr->left + DISPLAY_ASPECT_WIDTH / 2;
-  height = selr->bottom - selr->top + DISPLAY_SCREEN_HEIGHT / 2;
-
-  width -= w_ofs; height -= h_ofs;
-  width /= DISPLAY_ASPECT_WIDTH; height /= DISPLAY_SCREEN_HEIGHT;
-
-  if( wParam == WMSZ_LEFT || wParam == WMSZ_RIGHT ) {
-    height = width;
-  } else if( wParam == WMSZ_TOP || wParam == WMSZ_BOTTOM ) {
-    width = height;
-  }
-
-  if( width < 1 || height < 1 ) {
-    width = 1; height = 1;
-  }
-
-  if( width > w_max || height > h_max ) {
-    width = w_max; height = h_max;
-  }
-
-  if( width > MAX_SCALE || height > MAX_SCALE ) {
-    width = MAX_SCALE; height = MAX_SCALE;
-  }
-
-  if( width < height ) {
-    height = width;
-  } else {
-    width = height;
-  }
-
-  width *= DISPLAY_ASPECT_WIDTH; height *= DISPLAY_SCREEN_HEIGHT;
-  width += w_ofs; height += h_ofs;
-
-  /* Set window size */
-  if( wParam == WMSZ_TOP ||
-      wParam == WMSZ_TOPLEFT ||
-      wParam == WMSZ_TOPRIGHT ) {
-    selr->top = selr->bottom - height;
-  } else {
-    selr->bottom = selr->top + height;
-  }
-  if( wParam == WMSZ_LEFT ||
-      wParam == WMSZ_TOPLEFT ||
-      wParam == WMSZ_BOTTOMLEFT ) {
-    selr->left = selr->right - width;
-  } else {
-    selr->right = selr->left + width;
+  if( selr->bottom - selr->top < min_h ) {
+    if( wParam == WMSZ_TOP || wParam == WMSZ_TOPLEFT || wParam == WMSZ_TOPRIGHT )
+      selr->top = selr->bottom - min_h;
+    else
+      selr->bottom = selr->top + min_h;
   }
 
   return TRUE;

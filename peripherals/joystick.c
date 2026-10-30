@@ -158,7 +158,15 @@ joystick_register_startup( void )
 int
 joystick_press( int which, joystick_button button, int press )
 {
+  static int joy_btn_held[3][16];
   joystick_type_t type;
+  int src_idx = ( which == JOYSTICK_KEYBOARD ) ? 2 : ( ( which >= 0 && which < 2 ) ? which : -1 );
+
+  if( src_idx >= 0 && button >= 0 && button < 16 ) {
+    int want = press ? 1 : 0;
+    if( joy_btn_held[src_idx][button] == want ) return 1;
+    joy_btn_held[src_idx][button] = want;
+  }
 
   switch( which ) {
   case 0: type = settings_current.joystick_1_output; break;
@@ -169,6 +177,15 @@ joystick_press( int which, joystick_button button, int press )
 
   default:
     return 0;
+  }
+
+  /* Always mirror physical controller (which == 0 or 1) onto Kempston port 0x1F as well */
+  if( which == 0 || which == 1 ) {
+    if( press ) {
+      kempston_value |=  kempston_mask[ button ];
+    } else {
+      kempston_value &= ~kempston_mask[ button ];
+    }
   }
 
   switch( type ) {
@@ -295,31 +312,13 @@ joystick_enabled_snapshot( libspectrum_snap *snap )
       continue;
     }
 
-    if( settings_current.joystick_keyboard_output != fuse_type &&
-        settings_current.joystick_1_output != fuse_type &&
-        settings_current.joystick_2_output != fuse_type &&
-        !rzx_playback ) {
-      switch( ui_confirm_joystick( libspectrum_snap_joystick_list(snap,i),
-                                   libspectrum_snap_joystick_inputs(snap,i)) ) {
-      case UI_CONFIRM_JOYSTICK_KEYBOARD:
-        settings_current.joystick_keyboard_output = fuse_type;
-        break;
-      case UI_CONFIRM_JOYSTICK_JOYSTICK_1:
-        settings_current.joystick_1_output = fuse_type;
-        break;
-      case UI_CONFIRM_JOYSTICK_JOYSTICK_2:
-        settings_current.joystick_2_output = fuse_type;
-        break;
-      case UI_CONFIRM_JOYSTICK_NONE:
-        break;
-      }
+    /* Keep Kempston joystick active by default and never hijack keyboard keys (67890 / QAOP)
+       when a snapshot specifies a non-Kempston joystick tag */
+    settings_current.joy_kempston = 1;
+    if( settings_current.joystick_1_output == JOYSTICK_TYPE_NONE ) {
+      settings_current.joystick_1_output = JOYSTICK_TYPE_KEMPSTON;
     }
-
-    /* If the snap was configured for a Kempston joystick, enable
-       our Kempston emulation in case the snap was reading from
-       the joystick to prevent things going haywire */
-    if( fuse_type == JOYSTICK_TYPE_KEMPSTON )
-      settings_current.joy_kempston = 1;
+    (void)fuse_type;
   }
 }
 
