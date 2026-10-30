@@ -64,6 +64,7 @@
 #include "tape.h"
 #include "ui/scaler/scaler.h"
 #include "ui/ui.h"
+#include "uimedia.h"
 #include "utils.h"
 
 #ifdef WIN32
@@ -2752,6 +2753,7 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
 #define IDM_FXR_QUICK_TAPE_EJECT  40262
 #define IDM_FXR_QUICK_RESET_SOFT  40263
 #define IDM_FXR_QUICK_RESET_HARD  40264
+#define IDM_FXR_QUICK_FULLSCREEN  40265
 
 #define IDM_FXR_VR_TOGGLE         40280
 #define IDM_FXR_VR_OPEN_BROWSER   40281
@@ -2820,9 +2822,66 @@ static int g_fxr_tosec_count = 0;
 static int g_fxr_tosec_cap = 0;
 static int g_fxr_tosec_indexed = 0;
 static int g_fxr_local_tosec_found = 0;
-static int g_fxr_force_online_dice = 0;
+static int g_fxr_force_online_dice = 1;
+static int g_fxr_suppress_ui_error = 0;
+static int g_fxr_fullscreen = 0;
+static HMENU g_fxr_saved_menu = NULL;
+static LONG g_fxr_saved_style = 0;
+static WINDOWPLACEMENT g_fxr_saved_wp = { sizeof( WINDOWPLACEMENT ) };
 static HMENU g_fxr_hSubCloud = NULL;
 static HBITMAP g_fxr_dice_bmp = NULL;
+
+int
+quest_vr_should_suppress_error( void )
+{
+  return quest_vr_is_running() || g_fxr_suppress_ui_error;
+}
+
+void
+quest_vr_toggle_fullscreen( void *hWnd_ptr )
+{
+#ifdef WIN32
+  HWND hWnd = (HWND)hWnd_ptr;
+  if( !hWnd ) hWnd = g_fxr_main_hwnd;
+  if( !hWnd ) return;
+
+  if( !g_fxr_fullscreen ) {
+    MONITORINFO mi;
+    mi.cbSize = sizeof( mi );
+    if( !GetMonitorInfoA( MonitorFromWindow( hWnd, MONITOR_DEFAULTTONEAREST ), &mi ) )
+      return;
+
+    g_fxr_saved_style = GetWindowLongA( hWnd, GWL_STYLE );
+    GetWindowPlacement( hWnd, &g_fxr_saved_wp );
+    g_fxr_saved_menu = GetMenu( hWnd );
+    if( g_fxr_saved_menu ) SetMenu( hWnd, NULL );
+
+    g_fxr_fullscreen = 1;
+    SetWindowLongA( hWnd, GWL_STYLE,
+                    ( g_fxr_saved_style & ~WS_OVERLAPPEDWINDOW ) | WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN );
+    SetWindowPos( hWnd, HWND_TOP,
+                  mi.rcMonitor.left, mi.rcMonitor.top,
+                  mi.rcMonitor.right - mi.rcMonitor.left,
+                  mi.rcMonitor.bottom - mi.rcMonitor.top,
+                  SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
+    InvalidateRect( hWnd, NULL, TRUE );
+  } else {
+    g_fxr_fullscreen = 0;
+    if( g_fxr_saved_menu ) {
+      SetMenu( hWnd, g_fxr_saved_menu );
+      g_fxr_saved_menu = NULL;
+    }
+    SetWindowLongA( hWnd, GWL_STYLE, g_fxr_saved_style );
+    SetWindowPlacement( hWnd, &g_fxr_saved_wp );
+    SetWindowPos( hWnd, NULL, 0, 0, 0, 0,
+                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
+    DrawMenuBar( hWnd );
+    InvalidateRect( hWnd, NULL, TRUE );
+  }
+#else
+  (void)hWnd_ptr;
+#endif
+}
 
 static void
 fxr_update_window_title( const char *status_suffix )
@@ -3048,7 +3107,7 @@ fxr_next_rand( void )
   return rng * 0x2545f4914f6cdd1dULL;
 }
 
-static void fxr_load_file_direct( const char *full_path, const char *display_name, const char *fmt_hint );
+static int fxr_load_file_direct( const char *full_path, const char *display_name, const char *fmt_hint );
 
 /* Host 1: Internet Archive TOSEC 44,528-file Cloud Archive via HTTP Range Slice */
 static int
@@ -3119,33 +3178,39 @@ fxr_online_random_ia_tosec( const char *fmt_filter )
 
   if( cand_count <= 0 ) return 0;
 
-  const char *chosen = candidates[(int)( fxr_next_rand() % (uint64_t)cand_count )];
-  const char *slash = strrchr( chosen, '/' );
-  const char *raw_fname = slash ? ( slash + 1 ) : chosen;
+  int attempt;
+  int start_idx = (int)( fxr_next_rand() % (uint64_t)cand_count );
+  for( attempt = 0; attempt < 4 && attempt < cand_count; attempt++ ) {
+    const char *chosen = candidates[( start_idx + attempt * 7 ) % cand_count];
+    const char *slash = strrchr( chosen, '/' );
+    const char *raw_fname = slash ? ( slash + 1 ) : chosen;
 
-  char encoded_inner[1024];
-  fxr_url_encode_component( chosen, encoded_inner, sizeof( encoded_inner ) );
+    char encoded_inner[1024];
+    fxr_url_encode_component( chosen, encoded_inner, sizeof( encoded_inner ) );
 
-  char dl_url[1400];
-  snprintf( dl_url, sizeof( dl_url ),
-    "https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.zip/%s",
-    encoded_inner );
+    char dl_url[1400];
+    snprintf( dl_url, sizeof( dl_url ),
+      "https://archive.org/download/Sinclair_ZX_Spectrum_TOSEC_2012_04_23/Sinclair_ZX_Spectrum_TOSEC_2012_04_23.zip/%s",
+      encoded_inner );
 
-  char dl_dir[512], clean_fname[256], dest_path[768], title[256];
-  fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
-  fxr_sanitize_filename( raw_fname, clean_fname, sizeof( clean_fname ) );
-  snprintf( dest_path, sizeof( dest_path ), "%s/%s", dl_dir, clean_fname );
+    char dl_dir[512], clean_fname[256], dest_path[768], title[256];
+    fxr_ensure_downloads_dir( dl_dir, sizeof( dl_dir ) );
+    fxr_sanitize_filename( raw_fname, clean_fname, sizeof( clean_fname ) );
+    snprintf( dest_path, sizeof( dest_path ), "%s/%s", dl_dir, clean_fname );
 
-  snprintf( title, sizeof( title ), "%s", raw_fname );
-  char *zext = strstr( title, ".zip" );
-  if( zext ) *zext = '\0';
+    snprintf( title, sizeof( title ), "%s", raw_fname );
+    char *zext = strstr( title, ".zip" );
+    if( zext ) *zext = '\0';
 
-  fxr_update_window_title( "Downloading from Internet Archive TOSEC Cloud..." );
-  if( !fxr_http_download_file( dl_url, dest_path ) ) return 0;
+    fxr_update_window_title( "Downloading from Internet Archive TOSEC Cloud..." );
+    if( !fxr_http_download_file( dl_url, dest_path ) ) continue;
 
-  fxr_load_file_direct( dest_path, title, ranges[r_idx].fmt );
-  fxr_update_window_title( "Cloud: IA TOSEC 44k" );
-  return 1;
+    if( fxr_load_file_direct( dest_path, title, ranges[r_idx].fmt ) ) {
+      fxr_update_window_title( "Cloud: IA TOSEC 44k" );
+      return 1;
+    }
+  }
+  return 0;
 }
 
 /* Host 2: Internet Archive 12,305 ZX Spectrum Software Library (.Z80 Snapshots) */
@@ -3239,7 +3304,7 @@ fxr_online_random_ia_softlib( void )
   fxr_update_window_title( "Downloading from IA ZX Spectrum Library..." );
   if( !fxr_http_download_file( dl_url, dest_path ) ) return 0;
 
-  fxr_load_file_direct( dest_path, title, file_fmt );
+  if( !fxr_load_file_direct( dest_path, title, file_fmt ) ) return 0;
   fxr_update_window_title( "Cloud: IA Software Library" );
   return 1;
 }
@@ -3295,7 +3360,7 @@ fxr_online_random_vtrdos( void )
   fxr_update_window_title( "Downloading TR-DOS Disk from vtrd.in..." );
   if( !fxr_http_download_file( dl_url, dest_path ) ) return 0;
 
-  fxr_load_file_direct( dest_path, chosen, "trd" );
+  if( !fxr_load_file_direct( dest_path, chosen, "trd" ) ) return 0;
   fxr_update_window_title( "Cloud: Virtual TR-DOS" );
   return 1;
 }
@@ -3443,11 +3508,12 @@ fxr_build_tosec_index( void )
   }
 }
 
-static void
+static int
 fxr_load_file_direct( const char *full_path, const char *display_name, const char *fmt_hint )
 {
   char resolved_path[768];
-  if( !full_path || !full_path[0] ) return;
+  int is_cloud_cache = 0;
+  if( !full_path || !full_path[0] ) return 0;
   if( !g_qvr.initialized ) quest_vr_init();
 
   /* If this entry is a Cloud TOSEC path ("cloud://Sinclair ZX Spectrum [TOSEC]/..."), download on demand! */
@@ -3473,10 +3539,13 @@ fxr_load_file_direct( const char *full_path, const char *display_name, const cha
       SetCursor( hOld );
       if( !ok ) {
         fxr_update_window_title( "Cloud Download Failed" );
-        return;
+        return 0;
       }
     }
     full_path = resolved_path;
+    is_cloud_cache = 1;
+  } else if( strstr( full_path, "games/downloads" ) || strstr( full_path, "games\\downloads" ) ) {
+    is_cloud_cache = 1;
   }
 
   settings_current.joy_prompt = 0;
@@ -3485,26 +3554,39 @@ fxr_load_file_direct( const char *full_path, const char *display_name, const cha
   settings_current.detect_loader = 1;
   settings_current.fastload = 1;
   settings_current.accelerate_loader = 1;
+  settings_current.disk_ask_merge = 0;
 
   if( fmt_hint && ( !strcasecmp( fmt_hint, "tap" ) || !strcasecmp( fmt_hint, "tzx" ) ) ) {
+    ui_media_drive_eject_all();
     if( display_name && ( strstr( display_name, "128" ) || strstr( display_name, "+2" ) || strstr( display_name, "+3" ) ) ) {
       machine_select_id( "128" );
     } else {
       machine_select_id( "48" );
     }
   } else if( fmt_hint && !strcasecmp( fmt_hint, "dsk" ) ) {
+    tape_close();
     machine_select_id( "plus3" );
   } else if( fmt_hint && ( !strcasecmp( fmt_hint, "trd" ) || !strcasecmp( fmt_hint, "scl" ) ) ) {
+    tape_close();
     machine_select_id( "pentagon" );
   }
 
-  utils_open_file( full_path, 1, NULL );
+  g_fxr_suppress_ui_error = 1;
+  int err = utils_open_file( full_path, 1, NULL );
+  g_fxr_suppress_ui_error = 0;
+
+  if( err != 0 ) {
+    if( is_cloud_cache ) DeleteFileA( full_path );
+    return 0;
+  }
+
   pokemem_autoload_pokfile();
   display_refresh_all();
 
   snprintf( g_fxr_current_game, sizeof( g_fxr_current_game ), "%s",
             ( display_name && display_name[0] ) ? display_name : full_path );
   fxr_update_window_title( NULL );
+  return 1;
 }
 
 static void
@@ -3535,20 +3617,26 @@ fxr_load_random_game( const char *fmt_filter, int local_only )
         } else {
           if( !strcasecmp( e->fmt, "tzx" ) ) continue;
         }
-        fxr_load_file_direct( e->full_path, e->title, e->fmt );
-        return;
+        if( fxr_load_file_direct( e->full_path, e->title, e->fmt ) ) {
+          return;
+        }
       }
     }
   }
 
   if( g_fxr_local_game_count > 0 ) {
-    int idx = (int)( rval % (uint64_t)g_fxr_local_game_count );
-    char full_path[512];
-    const char *fname = g_fxr_local_games[idx];
-    const char *ext = strrchr( fname, '.' );
-    if( !g_qvr.initialized ) quest_vr_init();
-    snprintf( full_path, sizeof( full_path ), "%s/games/%s", g_qvr.base_dir, fname );
-    fxr_load_file_direct( full_path, fname, ext ? ( ext + 1 ) : "z80" );
+    int tries;
+    for( tries = 0; tries < g_fxr_local_game_count; tries++ ) {
+      int idx = (int)( ( rval + (uint64_t)tries ) % (uint64_t)g_fxr_local_game_count );
+      char full_path[512];
+      const char *fname = g_fxr_local_games[idx];
+      const char *ext = strrchr( fname, '.' );
+      if( !g_qvr.initialized ) quest_vr_init();
+      snprintf( full_path, sizeof( full_path ), "%s/games/%s", g_qvr.base_dir, fname );
+      if( fxr_load_file_direct( full_path, fname, ext ? ( ext + 1 ) : "z80" ) ) {
+        return;
+      }
+    }
   }
 }
 
@@ -4361,6 +4449,8 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_TAPE_REWIND, "Re&wind Tape" );
   AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_TAPE_EJECT,  "&Eject / Clear Tape" );
   AppendMenuA( hMenuQuick, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_FULLSCREEN,  "&Fullscreen / Zen Mode\tF10" );
+  AppendMenuA( hMenuQuick, MF_SEPARATOR, 0, NULL );
   AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_RESET_SOFT,  "&Quick Reset Machine (No Prompt)" );
   AppendMenuA( hMenuQuick, MF_STRING, IDM_FXR_QUICK_RESET_HARD,  "&Hard Reset Machine (No Prompt)" );
 
@@ -4381,13 +4471,13 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_72,       "Target FPS: &72 FPS (Quest)" );
   AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_90,       "Target FPS: &90 FPS (Quest 3)" );
 
-  /* Insert the 4 new top-level menus before "&Help" (position 4) */
+  /* Insert the 4 compact top-level menus before "&Help" so all items + Random Dice fit on 1 row */
   int count = GetMenuItemCount( hBar );
   int insert_pos = ( count > 1 ) ? ( count - 1 ) : count;
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuGames, "&Games && Archives" );
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuCheat, "Easy &Cheat" );
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuQuick, "&Quick Setup" );
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuVR,    "Quest &VR" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuGames, "&Games" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuCheat, "&Cheats" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuQuick, "&Setup" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuVR,    "&VR" );
 
   /* Add the 1-Click 3D Emerald Dice Button ("Random") right-aligned at the far right of the top menu bar */
   {
@@ -4438,7 +4528,9 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   case IDM_FXR_DICE_BTN:
   case IDM_FXR_RANDOM_ANY:
     if( g_fxr_force_online_dice || ( GetKeyState( VK_SHIFT ) & 0x8000 ) ) {
-      fxr_download_random_online_game( NULL );
+      if( !fxr_download_random_online_game( NULL ) ) {
+        fxr_load_random_game( NULL, 0 );
+      }
     } else {
       fxr_load_random_game( NULL, 0 );
     }
@@ -4593,6 +4685,7 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   case IDM_FXR_QUICK_TAPE_PLAY:   tape_toggle_play( 0 ); return 1;
   case IDM_FXR_QUICK_TAPE_REWIND: tape_rewind(); return 1;
   case IDM_FXR_QUICK_TAPE_EJECT:  tape_close(); return 1;
+  case IDM_FXR_QUICK_FULLSCREEN:  quest_vr_toggle_fullscreen( hWnd ); return 1;
   case IDM_FXR_QUICK_RESET_SOFT:  machine_reset( 0 ); display_refresh_all(); return 1;
   case IDM_FXR_QUICK_RESET_HARD:  machine_reset( 1 ); display_refresh_all(); return 1;
 

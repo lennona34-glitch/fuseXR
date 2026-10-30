@@ -122,10 +122,47 @@ blit( void )
   height = ps.rcPaint.bottom - ps.rcPaint.top;
 
   if( width && height ) {
+    float scale = ( image_scale > 0 ) ? ( (float)win32display_current_size / image_scale ) : 1.0f;
+    int src_w = (int)( scale * image_width );
+    int src_h = (int)( scale * image_height );
+    RECT cr;
+    GetClientRect( fuse_hWnd, &cr );
+    int avail_w = cr.right - cr.left;
+    int avail_h = cr.bottom - cr.top;
+    if( settings_current.statusbar && fuse_hStatusWindow && IsWindowVisible( fuse_hStatusWindow ) ) {
+      RECT sr;
+      GetClientRect( fuse_hStatusWindow, &sr );
+      avail_h -= ( sr.bottom - sr.top );
+    }
+
     src_dc = CreateCompatibleDC( dest_dc );
     src_bmp = SelectObject( src_dc, fuse_BMP );
 
-    BitBlt( dest_dc, x, y, width, height, src_dc, x, y, SRCCOPY );
+    if( src_w > 0 && src_h > 0 && ( avail_w > src_w + 4 || avail_h > src_h + 4 ) ) {
+      int dst_w = avail_w;
+      int dst_h = ( avail_w * DISPLAY_SCREEN_HEIGHT ) / DISPLAY_ASPECT_WIDTH;
+      if( dst_h > avail_h ) {
+        dst_h = avail_h;
+        dst_w = ( avail_h * DISPLAY_ASPECT_WIDTH ) / DISPLAY_SCREEN_HEIGHT;
+      }
+      int dst_x = ( avail_w - dst_w ) / 2;
+      int dst_y = ( avail_h - dst_h ) / 2;
+
+      if( dst_x > 0 ) {
+        PatBlt( dest_dc, 0, 0, dst_x, avail_h, BLACKNESS );
+        PatBlt( dest_dc, dst_x + dst_w, 0, avail_w - ( dst_x + dst_w ), avail_h, BLACKNESS );
+      }
+      if( dst_y > 0 ) {
+        PatBlt( dest_dc, dst_x, 0, dst_w, dst_y, BLACKNESS );
+        PatBlt( dest_dc, dst_x, dst_y + dst_h, dst_w, avail_h - ( dst_y + dst_h ), BLACKNESS );
+      }
+
+      SetStretchBltMode( dest_dc, COLORONCOLOR );
+      StretchBlt( dest_dc, dst_x, dst_y, dst_w, dst_h,
+                  src_dc, 0, 0, src_w, src_h, SRCCOPY );
+    } else {
+      BitBlt( dest_dc, x, y, width, height, src_dc, x, y, SRCCOPY );
+    }
 
     SelectObject( src_dc, src_bmp );
     DeleteDC( src_dc );
@@ -238,14 +275,21 @@ win32display_drawing_area_resize( int width, int height, int force_scaler )
   if( size > height / DISPLAY_SCREEN_HEIGHT )
     size = height / DISPLAY_SCREEN_HEIGHT;
 
-  /* If we're the same size as before, no need to do anything else */
-  if( size == win32display_current_size ) return 0;
+  if( size < 1 ) size = 1;
+  if( size > MAX_SCALE ) size = MAX_SCALE;
+
+  /* If we're the same size as before, still repaint for maximized/fullscreen layout */
+  if( size == win32display_current_size ) {
+    InvalidateRect( fuse_hWnd, NULL, TRUE );
+    return 0;
+  }
 
   win32display_current_size = size;
 
   register_scalers( force_scaler );
 
   display_refresh_all();
+  InvalidateRect( fuse_hWnd, NULL, TRUE );
 
   return 0;
 }
@@ -352,13 +396,24 @@ uidisplay_frame_end( void )
   quest_vr_poll_events();
 
   if( !IsRectEmpty( &invalidated_area ) ) {
+    float scale = ( image_scale > 0 ) ? ( (float)win32display_current_size / image_scale ) : 1.0f;
+    int src_w = (int)( scale * image_width );
+    int src_h = (int)( scale * image_height );
+    RECT cr;
+    GetClientRect( fuse_hWnd, &cr );
+    int avail_w = cr.right - cr.left;
+    int avail_h = cr.bottom - cr.top;
 
     /* Invalidate asynchronously: WM_PAINT will always copy the newest
        completed DIB, while Windows coalesces invalidations if painting
        cannot keep up. UpdateWindow() would synchronously dispatch WM_PAINT
        and can therefore stall emulation once per frame. */
     display_timing_presentation_begin();
-    InvalidateRect( fuse_hWnd, &invalidated_area, FALSE );
+    if( avail_w > src_w + 4 || avail_h > src_h + 4 ) {
+      InvalidateRect( fuse_hWnd, NULL, FALSE );
+    } else {
+      InvalidateRect( fuse_hWnd, &invalidated_area, FALSE );
+    }
     display_timing_presentation_end();
 
     SetRectEmpty( &invalidated_area );

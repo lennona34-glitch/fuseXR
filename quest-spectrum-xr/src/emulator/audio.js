@@ -15,6 +15,7 @@ export class SpectrumAudio {
 
     // Buffer scheduling state
     this.nextStartTime = 0;
+    this.activeSources = new Set();
 
     // Beeper state per frame
     this.beeperState = 0.0;
@@ -26,6 +27,7 @@ export class SpectrumAudio {
 
     // AY-3-8912 registers (16 registers)
     this.ayRegs = new Uint8Array(16);
+    this.ayRegs[7] = 0x3f; // Mixer: all tone/noise channels disabled on power-up
     this.aySelectedReg = 0;
 
     // AY tone channels phase accumulators (A, B, C)
@@ -173,10 +175,49 @@ export class SpectrumAudio {
   }
 
   /**
+   * Reset all AY-3-8912 registers, Beeper state, and stop any queued WebAudio buffers
+   * Prevents stuck static notes or overlapping buffers when skipping through games
+   */
+  reset() {
+    if (this.activeSources && this.activeSources.size > 0) {
+      for (const src of this.activeSources) {
+        try {
+          src.onended = null;
+          src.stop();
+          src.disconnect();
+        } catch (_) {}
+      }
+      this.activeSources.clear();
+    }
+    this.nextStartTime = 0;
+    this.beeperState = 0.0;
+    this.beeperSampleIdx = 0;
+    if (this.beeperFrameSamples) this.beeperFrameSamples.fill(0);
+    if (this.frameBuffer) this.frameBuffer.fill(0);
+    if (this.ayRegs) {
+      this.ayRegs.fill(0);
+      this.ayRegs[7] = 0x3f;
+    }
+    this.aySelectedReg = 0;
+    this.phase = [0.0, 0.0, 0.0];
+    this.noisePhase = 0.0;
+    this.noiseLfsr = 1;
+    this.envelopePhase = 0.0;
+    this.envelopeLevel = 0;
+    this.envelopeHolding = false;
+    this.dcFilterState = 0.0;
+    this.prevRawSample = 0.0;
+  }
+
+  /**
    * Called once per PAL frame (50Hz) from spectrum.stepFrame()
    * Synthesizes exactly 1 frame of audio and schedules it to the audio hardware
    */
-  endFrame() {
+  endFrame(muteOutput = false) {
+    if (muteOutput) {
+      this.beeperSampleIdx = 0;
+      return;
+    }
     const len = this.samplesPerFrame;
     const sampleRate = this.sampleRate;
     const clockHz = 1773400.0; // AY Clock Hz (3.5469MHz / 2)
@@ -276,6 +317,10 @@ export class SpectrumAudio {
       }
 
       src.start(this.nextStartTime);
+      this.activeSources.add(src);
+      src.onended = () => {
+        this.activeSources.delete(src);
+      };
       this.nextStartTime += audioBuf.duration;
     } catch (err) {
       console.warn('[AudioEngine] Buffer schedule error:', err);

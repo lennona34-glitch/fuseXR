@@ -18,27 +18,27 @@ export class GamesLibrary {
       { name: 'Saboteur! (48K Z80)', file: '/games/Saboteur.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'RoboCop (Z80)', file: '/games/Robocop.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
       { name: 'R-Type (Z80)', file: '/games/R-Type.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
-      { name: 'Out Run (Z80)', file: '/games/OutRun.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
-      { name: 'Renegade (Z80)', file: '/games/Renegade.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
+      { name: 'Out Run (Z80)', file: '/games/OutRun.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
+      { name: 'Renegade (Z80)', file: '/games/Renegade.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Bomb Jack (Z80)', file: '/games/BombJack.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
-      { name: 'Head Over Heels (Z80)', file: '/games/HeadOverHeels.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
+      { name: 'Head Over Heels (Z80)', file: '/games/HeadOverHeels.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Jetpac (Z80)', file: '/games/JetPac.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Knight Lore (Z80)', file: '/games/KnightLore.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Manic Miner (Z80)', file: '/games/ManicMiner.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Skool Daze (Z80)', file: '/games/SkoolDaze.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
-      { name: 'Rainbow Islands (Z80)', file: '/games/RainbowIslands.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
+      { name: 'Rainbow Islands (Z80)', file: '/games/RainbowIslands.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Green Beret (Z80)', file: '/games/GreenBeret.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Ghosts \'n Goblins (Z80)', file: '/games/GhostsNGoblins.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
-      { name: 'Fantasy World Dizzy (Z80)', file: '/games/FantasyWorldDizzy.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
-      { name: 'Treasure Island Dizzy (Z80)', file: '/games/TreasureIslandDizzy.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
-      { name: 'Bubble Bobble (Z80)', file: '/games/BubbleBobble.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
-      { name: 'Cybernoid (Z80)', file: '/games/Cybernoid.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
-      { name: 'Exolon (Z80)', file: '/games/Exolon.z80', type: 'z80', model: SpectrumModel.Spectrum128K },
+      { name: 'Fantasy World Dizzy (Z80)', file: '/games/FantasyWorldDizzy.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
+      { name: 'Treasure Island Dizzy (Z80)', file: '/games/TreasureIslandDizzy.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
+      { name: 'Bubble Bobble (Z80)', file: '/games/BubbleBobble.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
+      { name: 'Cybernoid (Z80)', file: '/games/Cybernoid.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
+      { name: 'Exolon (Z80)', file: '/games/Exolon.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Cobra (Z80)', file: '/games/Cobra.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Chuckie Egg (Z80)', file: '/games/ChuckieEgg.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Daley Thompson\'s Decathlon (Z80)', file: '/games/DaleyThompson.z80', type: 'z80', model: SpectrumModel.Spectrum48K },
-      { name: 'Turrican (Z80 Instant)', file: '/games/TURRIC_1.Z80', type: 'z80', model: SpectrumModel.Spectrum128K },
-      { name: 'Emlyn Hughes Soccer (Z80)', file: '/games/Emlyn Hughes International Soccer (1989)(Audiogenic Software).z80', type: 'z80', model: SpectrumModel.Spectrum128K },
+      { name: 'Turrican (Z80 Instant)', file: '/games/TURRIC_1.Z80', type: 'z80', model: SpectrumModel.Spectrum48K },
+      { name: 'Emlyn Hughes Soccer (Z80)', file: '/games/Emlyn Hughes International Soccer (1989)(Audiogenic Software).z80', type: 'z80', model: SpectrumModel.Spectrum48K },
       { name: 'Target Renegade (+3 Disk)', file: '/games/Renegade 2 - Target Renegade.dsk', type: 'dsk', model: SpectrumModel.SpectrumPlus3 },
       { name: 'RoboCop 2 (+3 Disk)', file: '/games/Robocop 2.dsk', type: 'dsk', model: SpectrumModel.SpectrumPlus3 },
       { name: 'Turrican 2 (+3 Disk)', file: '/games/Turrican 2 - Side A.dsk', type: 'dsk', model: SpectrumModel.SpectrumPlus3 },
@@ -198,11 +198,12 @@ export class GamesLibrary {
 
     if (cleanExt === 'z80') {
       const detectedModel = SnapshotLoader.detectModel(new Uint8Array(buffer), 'z80');
-      const targetModel = (is128K === true)
-        ? SpectrumModel.Spectrum128K
-        : (is128K === false ? SpectrumModel.Spectrum48K : detectedModel);
+      const targetModel = detectedModel || ((is128K === true) ? SpectrumModel.Spectrum128K : SpectrumModel.Spectrum48K);
       if (this.spectrum.model !== targetModel) {
         await this.spectrum.loadRomForModel(targetModel);
+      }
+      if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+        window.__speccyApp.updateModelBadge(targetModel);
       }
       SnapshotLoader.loadZ80(this.spectrum, buffer);
     } else if (cleanExt === 'sna') {
@@ -210,10 +211,16 @@ export class GamesLibrary {
       if (this.spectrum.model !== detectedModel) {
         await this.spectrum.loadRomForModel(detectedModel);
       }
+      if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+        window.__speccyApp.updateModelBadge(detectedModel);
+      }
       SnapshotLoader.loadSNA(this.spectrum, buffer);
     } else if (cleanExt === 'dsk') {
       if (this.spectrum.model !== SpectrumModel.SpectrumPlus3) {
         await this.spectrum.loadRomForModel(SpectrumModel.SpectrumPlus3);
+      }
+      if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+        window.__speccyApp.updateModelBadge(SpectrumModel.SpectrumPlus3);
       }
       await this.spectrum.insertDisk(buffer, fileName);
       this.spectrum.reset(true);
@@ -222,12 +229,18 @@ export class GamesLibrary {
       if (this.spectrum.model !== SpectrumModel.Pentagon128) {
         await this.spectrum.loadRomForModel(SpectrumModel.Pentagon128);
       }
+      if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+        window.__speccyApp.updateModelBadge(SpectrumModel.Pentagon128);
+      }
       await this.spectrum.insertTrDosDisk(buffer, fileName);
       this.autoBootTrDosDisk();
     } else if (cleanExt === 'tap' || cleanExt === 'tzx') {
       const targetModel = (is128K === true) ? SpectrumModel.Spectrum128K : SpectrumModel.Spectrum48K;
       if (this.spectrum.model !== targetModel) {
         await this.spectrum.loadRomForModel(targetModel);
+      }
+      if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+        window.__speccyApp.updateModelBadge(targetModel);
       }
       SnapshotLoader.loadTAP(this.spectrum, buffer, fileName);
       this.spectrum.reset(true);
@@ -256,30 +269,45 @@ export class GamesLibrary {
 
       if (cleanType === 'dsk') {
         await this.spectrum.insertDisk(buf, filename);
+        if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+          window.__speccyApp.updateModelBadge(SpectrumModel.SpectrumPlus3);
+        }
         this.spectrum.reset(true);
         this.autoBootPlus3Disk();
       } else if (cleanType === 'trd' || cleanType === 'scl') {
         await this.spectrum.insertTrDosDisk(buf, filename);
+        if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+          window.__speccyApp.updateModelBadge(SpectrumModel.Pentagon128);
+        }
         this.autoBootTrDosDisk();
       } else if (cleanType === 'tap' || cleanType === 'tzx') {
         const targetModel = model || SpectrumModel.Spectrum48K;
         if (this.spectrum.model !== targetModel) {
           await this.spectrum.loadRomForModel(targetModel);
         }
+        if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+          window.__speccyApp.updateModelBadge(targetModel);
+        }
         SnapshotLoader.loadTAP(this.spectrum, buf, filename);
         this.spectrum.reset(true);
         this.autoLoadTape();
       } else if (cleanType === 'sna') {
-        const targetModel = model || SnapshotLoader.detectModel(new Uint8Array(buf), 'sna');
+        const targetModel = SnapshotLoader.detectModel(new Uint8Array(buf), 'sna') || model;
         if (this.spectrum.model !== targetModel) {
           await this.spectrum.loadRomForModel(targetModel);
+        }
+        if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+          window.__speccyApp.updateModelBadge(targetModel);
         }
         SnapshotLoader.loadSNA(this.spectrum, buf);
       } else if (cleanType === 'z80') {
         const detectedModel = SnapshotLoader.detectModel(new Uint8Array(buf), 'z80');
-        const targetModel = model || detectedModel;
+        const targetModel = detectedModel || model;
         if (this.spectrum.model !== targetModel) {
           await this.spectrum.loadRomForModel(targetModel);
+        }
+        if (window.__speccyApp && typeof window.__speccyApp.updateModelBadge === 'function') {
+          window.__speccyApp.updateModelBadge(targetModel);
         }
         SnapshotLoader.loadZ80(this.spectrum, buf);
       }

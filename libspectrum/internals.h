@@ -174,6 +174,11 @@ libspectrum_zip_blind_read( const libspectrum_byte *zipptr, size_t ziplength,
                             libspectrum_byte **outptr, size_t *outlength,
                             size_t max_outlength );
 
+libspectrum_error
+libspectrum_zip_blind_read_ext( const libspectrum_byte *zipptr, size_t ziplength,
+                                libspectrum_byte **outptr, size_t *outlength,
+                                size_t max_outlength, char **new_filename );
+
 /* The TZX file signature */
 
 extern const char * const libspectrum_tzx_signature;

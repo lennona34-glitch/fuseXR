@@ -82,7 +82,7 @@ for ls_src in libspectrum/*.c libspectrum/myglib/*.c; do
   esac
   ls_obj="${ls_src%.c}.o"
   if [ ! -f "$ls_obj" ] || [ "$ls_src" -nt "$ls_obj" ]; then
-    gcc -O2 -Ilibspectrum -DHAVE_CONFIG_H -c "$ls_src" -o "$ls_obj"
+    gcc -O2 -Ilibspectrum -DHAVE_CONFIG_H -DLIBSPECTRUM_EXPORTS -c "$ls_src" -o "$ls_obj"
   fi
 done
 gcc -shared -O2 -o libspectrum-8.dll -Wl,--out-implib,libspectrum/libspectrum.dll.a libspectrum/*.o libspectrum/myglib/*.o -lz -lm

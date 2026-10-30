@@ -417,7 +417,7 @@ MENU_CALLBACK( menu_media_tape_open )
   filename = ui_get_open_filename( "Fuse - Open Tape" );
   if( !filename ) { fuse_emulation_unpause(); return; }
 
-  tape_open( filename, 0 );
+  tape_open( filename, tape_can_autoload() );
 
   libspectrum_free( filename );
 
@@ -536,7 +536,7 @@ MENU_CALLBACK_WITH_ACTION( menu_media_insert )
     if1_mdr_insert( which, filename );
     break;
   default:
-    ui_media_drive_insert( drive, filename, 0 );
+    ui_media_drive_insert( drive, filename, settings_current.auto_load );
     break;
   }
 

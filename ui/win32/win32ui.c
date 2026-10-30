@@ -179,7 +179,22 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       menu_file_exit( 0 );
       return 0;
 
+    case WM_SYSKEYDOWN:
+      if( wParam == VK_RETURN && ( lParam & ( 1 << 29 ) ) ) {
+        quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
+      if( wParam == VK_F10 ) {
+        quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
+      break;
+
     case WM_KEYDOWN:
+      if( wParam == VK_F10 ) {
+        quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
       if( wParam == VK_F11 ) {
         quest_vr_handle_win32_menu( 40001, hWnd );
         return 0;
@@ -224,10 +239,6 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       /* Stop the paused state to allow us to exit (occurs from main
          emulation loop) */
       if( paused ) menu_machine_pause( 0 );
-      return 0;
-
-    case WM_NCLBUTTONDBLCLK:
-      /* Don't allow double click on title bar, suppressing window maximizing */
       return 0;
 
     case WM_ENTERMENULOOP:
@@ -373,7 +384,7 @@ ui_init( int *argc, char ***argv )
     wc.hInstance = fuse_hInstance;
     wc.hIcon = LoadIcon( fuse_hInstance, "win32_icon" );
     wc.hCursor = LoadCursor( NULL, IDC_ARROW );
-    wc.hbrBackground = (HBRUSH)( COLOR_WINDOW+1 );
+    wc.hbrBackground = (HBRUSH)GetStockObject( BLACK_BRUSH );
     wc.lpszMenuName = "win32_menu";
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
@@ -384,7 +395,7 @@ ui_init( int *argc, char ***argv )
 
   /* create the window */
   fuse_hWnd = CreateWindow( "Fuse", "FuseXR 1.10.0", WS_OVERLAPPED | WS_CAPTION |
-    WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_CLIPCHILDREN,
+    WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CLIPCHILDREN,
     CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
     NULL, NULL, fuse_hInstance, NULL );
 
@@ -490,7 +501,7 @@ int
 ui_error_specific( ui_error_level severity, const char *message )
 {
   /* If we don't have a UI yet, or Quest VR broadcast is active, don't block main thread with modal MessageBox */
-  if( !display_ui_initialised || quest_vr_is_running() ) return 0;
+  if( !display_ui_initialised || quest_vr_should_suppress_error() ) return 0;
 
   switch( severity ) {
 

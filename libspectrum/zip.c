@@ -580,9 +580,9 @@ libspectrum_zip_read( struct libspectrum_zip *z, libspectrum_byte **buffer,
 
 /* Make 'best guesses' as to what to uncompress from the archive */
 libspectrum_error
-libspectrum_zip_blind_read( const libspectrum_byte *zipptr, size_t ziplength,
-                            libspectrum_byte **outptr, size_t *outlength,
-                            size_t max_outlength )
+libspectrum_zip_blind_read_ext( const libspectrum_byte *zipptr, size_t ziplength,
+                                libspectrum_byte **outptr, size_t *outlength,
+                                size_t max_outlength, char **new_filename )
 {
   struct libspectrum_zip *z;
   zip_stat info;
@@ -610,6 +610,24 @@ libspectrum_zip_blind_read( const libspectrum_byte *zipptr, size_t ziplength,
         class != LIBSPECTRUM_CLASS_COMPRESSED &&
         class != LIBSPECTRUM_CLASS_AUXILIARY ) {
 
+      if( new_filename && *new_filename ) {
+        const char *ext = strrchr( info.filename, '.' );
+        if( ext && ext[1] ) {
+          size_t base_len = strlen( *new_filename );
+          size_t ext_len = strlen( ext );
+          if( base_len < ext_len ||
+              strcasecmp( *new_filename + base_len - ext_len, ext ) != 0 ) {
+            char *updated = libspectrum_new( char, base_len + ext_len + 1 );
+            if( updated ) {
+              memcpy( updated, *new_filename, base_len );
+              memcpy( updated + base_len, ext, ext_len + 1 );
+              libspectrum_free( *new_filename );
+              *new_filename = updated;
+            }
+          }
+        }
+      }
+
       error = libspectrum_zip_read( z, outptr, outlength, max_outlength );
       libspectrum_zip_close( z );
 
@@ -620,4 +638,13 @@ libspectrum_zip_blind_read( const libspectrum_byte *zipptr, size_t ziplength,
   libspectrum_zip_close( z );
 
   return LIBSPECTRUM_ERROR_UNKNOWN;
+}
+
+libspectrum_error
+libspectrum_zip_blind_read( const libspectrum_byte *zipptr, size_t ziplength,
+                            libspectrum_byte **outptr, size_t *outlength,
+                            size_t max_outlength )
+{
+  return libspectrum_zip_blind_read_ext( zipptr, ziplength, outptr, outlength,
+                                         max_outlength, NULL );
 }

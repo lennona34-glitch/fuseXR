@@ -75,6 +75,8 @@ void quest_vr_poll_events( void );
 /* Native Win32 FuseXR Dropdown Menus & Studio Dialogs */
 void quest_vr_populate_win32_menus( void *hWnd );
 int quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd );
+int quest_vr_should_suppress_error( void );
+void quest_vr_toggle_fullscreen( void *hWnd );
 
 #ifdef __cplusplus
 }

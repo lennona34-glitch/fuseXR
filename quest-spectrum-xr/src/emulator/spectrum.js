@@ -170,6 +170,9 @@ export class ZXSpectrum {
     }
     this.cpu.reset();
     this.ula.setBorderColor(7);
+    if (this.audio && typeof this.audio.reset === 'function') {
+      this.audio.reset();
+    }
     this.kempstonState = 0;
     this.kempstonMouseX = 128;
     this.kempstonMouseY = 96;
@@ -367,7 +370,26 @@ export class ZXSpectrum {
       return (result & 0x1f) | 0xe0;
     }
 
-    return 0xff; // Floating bus
+    // 4. ULA Floating Bus (Port 0xFF and other odd unmapped ports during active screen scanlines)
+    // Required by Renegade, Cobra, Arkanoid, Terra Cresta, Short Circuit, etc. for raster beam sync!
+    if (lowByte === 0xff) {
+      const t = this.cpu.tStates;
+      if (t >= 14336 && t < 57344) {
+        const line = Math.floor((t - 14336) / 224);
+        const lineT = (t - 14336) % 224;
+        if (lineT < 128) {
+          const col = lineT >> 2;
+          const attrOffset = ((line >> 3) << 5) + col;
+          if (this.pagedMemory) {
+            const screenRam = this.pagedMemory.getScreenBytes();
+            return screenRam[0x1800 + attrOffset];
+          }
+          return this.memory48[0x5800 + attrOffset];
+        }
+      }
+    }
+
+    return 0xff; // Floating bus idle
   }
 
   writePort(port, val) {
@@ -783,7 +805,7 @@ export class ZXSpectrum {
       this.ula.renderFrame(this.memory48, 0x4000);
     }
 
-    // Synthesize and schedule audio for this frame
-    this.audio.endFrame();
+    // Synthesize and schedule audio for this frame (skip WebAudio output during fast-forward boot stepping)
+    this.audio.endFrame(Boolean(this._suppressFuseInput));
   }
 }

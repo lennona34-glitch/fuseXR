@@ -14,24 +14,34 @@ export class SnapshotLoader {
     if (data.length >= 35 && (data[6] | (data[7] << 8)) === 0) {
       const extraHeaderLen = data[30] | (data[31] << 8);
       const mode = data[34];
-      if (extraHeaderLen === 23) {
-        if (mode === 3 || mode === 4) return 'Spectrum128K';
-        if (mode === 7 || mode === 8) return 'SpectrumPlus3';
-        if (mode === 9) return 'Pentagon128';
-      } else {
-        if (mode === 7 || mode === 8) return 'SpectrumPlus3';
-        if (mode === 9) return 'Pentagon128';
-        if (mode >= 4) return 'Spectrum128K';
-      }
-      // Fallback: inspect page IDs in v2/v3 blocks (pages 3, 6, 7, 9, 10 only exist in 128K)
+      // First inspect actual RAM page IDs in v2/v3 blocks (pages 3, 6, 7, 9, 10 only exist in 128K)
       let offset = 32 + extraHeaderLen;
+      let has128KPages = false;
       while (offset + 3 <= data.length) {
         const len = data[offset] | (data[offset + 1] << 8);
         const pageId = data[offset + 2];
         if (pageId === 3 || pageId === 6 || pageId === 7 || pageId === 9 || pageId === 10) {
-          return 'Spectrum128K';
+          has128KPages = true;
+          break;
         }
         offset += 3 + (len === 0xffff ? 16384 : len);
+      }
+      if (has128KPages) {
+        if (mode === 7 || mode === 8) return 'SpectrumPlus3';
+        if (mode === 9) return 'Pentagon128';
+        return 'Spectrum128K';
+      }
+      if (extraHeaderLen === 23) {
+        // Z80 v2: 0=48K, 1=48K+IF1, 2=SamRam, 3=128K, 4=128K+IF1
+        if (mode === 3 || mode === 4) return 'Spectrum128K';
+        if (mode === 7 || mode === 8) return 'SpectrumPlus3';
+        if (mode === 9) return 'Pentagon128';
+      } else {
+        // Z80 v3: 0=48K, 1=48K+IF1, 2=SamRam, 3=48K+MGT, 4=128K, 5=128K+IF1, 6=128K+MGT
+        // Note: some tools write v2 hardware numbers in v3 headers (mode 3=128K, mode 4=48K),
+        // so only classify as 128K when has128KPages is true or mode >= 7!
+        if (mode === 7 || mode === 8) return 'SpectrumPlus3';
+        if (mode === 9) return 'Pentagon128';
       }
     }
     return 'Spectrum48K';
@@ -45,6 +55,11 @@ export class SnapshotLoader {
     if (data.length < 49179) {
       throw new Error(`Invalid SNA file size: ${data.length} bytes (expected >= 49179 bytes)`);
     }
+
+    // Cleanly reset CPU, RAM banks, paging registers, and AY/Beeper audio before unpacking
+    if (typeof spectrum.ejectDisk === 'function') spectrum.ejectDisk();
+    if (typeof spectrum.ejectTape === 'function') spectrum.ejectTape();
+    spectrum.reset(true);
 
     const cpu = spectrum.cpu;
 
@@ -124,6 +139,11 @@ export class SnapshotLoader {
     const data = new Uint8Array(buffer);
     if (data.length < 30) throw new Error('Truncated Z80 header');
 
+    // Cleanly reset CPU, RAM banks, paging registers, and AY/Beeper audio before unpacking
+    if (typeof spectrum.ejectDisk === 'function') spectrum.ejectDisk();
+    if (typeof spectrum.ejectTape === 'function') spectrum.ejectTape();
+    spectrum.reset(true);
+
     const cpu = spectrum.cpu;
     const isV2V3 = (data[6] | (data[7] << 8)) === 0;
     const pc = isV2V3 ? (data[32] | (data[33] << 8)) : (data[6] | (data[7] << 8));
@@ -180,7 +200,7 @@ export class SnapshotLoader {
       const blocks = SnapshotLoader.decodeV2V3Blocks(data, blocksOffset);
 
       const has128KPages = Boolean(blocks[3] || blocks[6] || blocks[7] || blocks[9] || blocks[10]);
-      const is128K = has128KPages || ((extraHeaderLen === 23) ? (mode >= 3) : (mode >= 4));
+      const is128K = has128KPages;
       if (!is128K) {
         // 48K mode:
         // Page 8 -> 0x4000 (RAM Bank 5)

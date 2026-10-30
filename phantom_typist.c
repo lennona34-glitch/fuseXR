@@ -33,6 +33,7 @@
 #include "compat.h"
 #include "infrastructure/startup_manager.h"
 #include "keyboard.h"
+#include "machine.h"
 #include "module.h"
 #include "phantom_typist.h"
 #include "settings.h"
@@ -208,6 +209,7 @@ static phantom_typist_state_t next_phantom_typist_state = PHANTOM_TYPIST_STATE_I
 static int delay = 0;
 static libspectrum_byte keyboard_ports_read = 0x00;
 static int command_count;
+static int enter_accepted = 0;
 
 static module_info_t phantom_typist_module_info = {
   phantom_typist_reset,
@@ -236,6 +238,9 @@ phantom_typist_register_startup( void )
 static void
 phantom_typist_reset( int hard_reset )
 {
+  delay = 0;
+  keyboard_ports_read = 0x00;
+  enter_accepted = 0;
   phantom_typist_state = PHANTOM_TYPIST_STATE_INACTIVE;
   next_phantom_typist_state = PHANTOM_TYPIST_STATE_INACTIVE;
   keyboard_synthetic_release_all( KEYBOARD_SYNTHETIC_PHANTOM_TYPIST );
@@ -247,6 +252,21 @@ phantom_typist_update_keyboard( void )
   struct state_info_t *state;
 
   keyboard_synthetic_release_all( KEYBOARD_SYNTHETIC_PHANTOM_TYPIST );
+
+  if( phantom_typist_state == PHANTOM_TYPIST_STATE_WAIT_AFTER_ENTER ) {
+    if( machine_current &&
+        ( ( machine_current->ram.last_byte2 & 0x08 ) ||
+          machine_current->ram.special ) ) {
+      enter_accepted = 1;
+    }
+    if( !enter_accepted && machine_current &&
+        machine_current->ram.current_rom == 0 &&
+        delay > 0 && delay <= 592 && ( delay % 16 ) >= 12 ) {
+      keyboard_synthetic_press( KEYBOARD_SYNTHETIC_PHANTOM_TYPIST,
+                                KEYBOARD_Enter );
+    }
+    return;
+  }
 
   if( delay || phantom_typist_state == PHANTOM_TYPIST_STATE_INACTIVE ||
       phantom_typist_state == PHANTOM_TYPIST_STATE_WAITING ) return;
@@ -305,6 +325,9 @@ static void
 set_state_waiting( void )
 {
   command_count = 0;
+  delay = 0;
+  keyboard_ports_read = 0x00;
+  enter_accepted = 0;
   phantom_typist_state = PHANTOM_TYPIST_STATE_WAITING;
   next_phantom_typist_state = PHANTOM_TYPIST_STATE_WAITING;
   keyboard_synthetic_release_all( KEYBOARD_SYNTHETIC_PHANTOM_TYPIST );
@@ -384,6 +407,9 @@ void
 phantom_typist_deactivate( void )
 {
   if( phantom_typist_is_active() ) {
+    delay = 0;
+    keyboard_ports_read = 0x00;
+    enter_accepted = 0;
     phantom_typist_state = PHANTOM_TYPIST_STATE_WAITING;
     next_phantom_typist_state = PHANTOM_TYPIST_STATE_INACTIVE;
     keyboard_synthetic_release_all( KEYBOARD_SYNTHETIC_PHANTOM_TYPIST );
@@ -418,9 +444,6 @@ process_waiting_state( libspectrum_byte high_byte )
         break;
 
       case PHANTOM_TYPIST_MODE_DOWN_LOADPPCODE:
-        next_phantom_typist_state = PHANTOM_TYPIST_STATE_DOWN;
-        break;
-
       case PHANTOM_TYPIST_MODE_WAIT_DOWN_LOADPPCODE:
         next_phantom_typist_state = PHANTOM_TYPIST_STATE_WAIT_DOWN;
         break;
