@@ -68,6 +68,7 @@ fuse_SOURCES = display.c \
 	unittests/tape.c \
 	ui.c \
 	ui/quest_vr.c \
+	ui/spec256.c \
 	uidisplay.c \
 	uimedia.c \
 	utils.c
@@ -154,7 +155,8 @@ noinst_HEADERS = bitmap.h \
 	utils.h \
 	options.h \
 	profile.h \
-	ui/quest_vr.h
+	ui/quest_vr.h \
+	ui/spec256.h
 
 EXTRA_DIST = AUTHORS \
 	     INSTALL \

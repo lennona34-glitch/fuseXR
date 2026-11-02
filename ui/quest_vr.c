@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include "ui/quest_vr.h"
+#include "ui/spec256.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -2315,6 +2316,9 @@ quest_vr_init( void )
     settings_current.joystick_2_output = JOYSTICK_TYPE_KEMPSTON;
     settings_current.joystick_keyboard_output = JOYSTICK_TYPE_KEMPSTON;
 
+    /* Initialize Spec256 Engine */
+    spec256_init();
+
 #ifdef WIN32
     /* Restore persisted CRT / Graphics Filter if previously selected by user */
     if( g_qvr.base_dir[0] ) {
@@ -2799,6 +2803,16 @@ quest_vr_submit_rgb565( const void *pixels, int width, int height, int pitch )
 #define IDM_FXR_VR_FPS_72         40290
 #define IDM_FXR_VR_FPS_90         40291
 
+#define IDM_FXR_SPEC256_OFF          40300
+#define IDM_FXR_SPEC256_AUTO_ARCADE  40301
+#define IDM_FXR_SPEC256_AUTO_SMOOTH  40302
+#define IDM_FXR_SPEC256_AUTO_VGA     40303
+#define IDM_FXR_SPEC256_NEXT_BG      40304
+#define IDM_FXR_SPEC256_PREV_BG      40305
+#define IDM_FXR_SPEC256_LOAD_GFX     40306
+#define IDM_FXR_SPEC256_LOAD_BG      40307
+#define IDM_FXR_SPEC256_CLASSIC_BASE 43000 /* 43000 .. 43099 */
+
 #define IDM_FXR_LOCAL_GAME_BASE   41000 /* 41000 .. 41255 */
 #define IDM_FXR_DL_GAME_BASE      42000 /* 42000 .. 42255 */
 
@@ -2883,6 +2897,8 @@ static HMENU g_fxr_hSubFilt = NULL;
 static HMENU g_fxr_hSubJoy = NULL;
 static HMENU g_fxr_hSubDiceMode = NULL;
 static HMENU g_fxr_hSubDlGames = NULL;
+static HMENU g_fxr_hMenuSpec256 = NULL;
+static HMENU g_fxr_hSubSpec256Classics = NULL;
 static int g_fxr_locked_scaler = -1;
 static HBITMAP g_fxr_dice_bmp = NULL;
 
@@ -3016,10 +3032,19 @@ fxr_update_window_title( const char *status_suffix )
 {
   char buf[384];
   if( !g_fxr_main_hwnd ) return;
+  const char *spec_tag = spec256_is_active() ? spec256_get_mode_name() : NULL;
   if( status_suffix && status_suffix[0] ) {
-    snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s [%s]", g_fxr_current_game, status_suffix );
+    if( spec_tag ) {
+      snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s [%s] [%s]", g_fxr_current_game, status_suffix, spec_tag );
+    } else {
+      snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s [%s]", g_fxr_current_game, status_suffix );
+    }
   } else {
-    snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s", g_fxr_current_game );
+    if( spec_tag ) {
+      snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s [%s]", g_fxr_current_game, spec_tag );
+    } else {
+      snprintf( buf, sizeof( buf ), "FuseXR 1.10.0 - %s", g_fxr_current_game );
+    }
   }
   SetWindowTextA( g_fxr_main_hwnd, buf );
 }
@@ -4955,13 +4980,52 @@ quest_vr_populate_win32_menus( void *hWnd_ptr )
   AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_72,       "Target FPS: &72 FPS (Quest)" );
   AppendMenuA( hMenuVR, MF_STRING, IDM_FXR_VR_FPS_90,       "Target FPS: &90 FPS (Quest 3)" );
 
-  /* Insert the 4 compact top-level menus before "&Help" so all items + Random Dice fit on 1 row */
+  /* 5. Build "Spec256" Top-Level Menu */
+  HMENU hMenuSpec256 = CreatePopupMenu();
+  HMENU hSubSpec256Classics = CreatePopupMenu();
+  g_fxr_hMenuSpec256 = hMenuSpec256;
+  g_fxr_hSubSpec256Classics = hSubSpec256Classics;
+
+  spec256_mode_t cur_mode = spec256_get_mode();
+  AppendMenuA( hMenuSpec256, MF_STRING | ( ( cur_mode == SPEC256_MODE_OFF ) ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_SPEC256_OFF,         "Spec256: &Off (Standard 16-Colour ULA)" );
+  AppendMenuA( hMenuSpec256, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuSpec256, MF_STRING | ( ( cur_mode == SPEC256_MODE_AUTO_ARCADE ) ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_SPEC256_AUTO_ARCADE, "Live 256-Colour: &Vibrant Arcade (Any Game)" );
+  AppendMenuA( hMenuSpec256, MF_STRING | ( ( cur_mode == SPEC256_MODE_AUTO_SMOOTH ) ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_SPEC256_AUTO_SMOOTH, "Live 256-Colour: &Smooth & Bevel (Any Game)" );
+  AppendMenuA( hMenuSpec256, MF_STRING | ( ( cur_mode == SPEC256_MODE_AUTO_VGA ) ? MF_CHECKED : MF_UNCHECKED ),
+               IDM_FXR_SPEC256_AUTO_VGA,    "Live 256-Colour: Retro &VGA 256 (Any Game)" );
+  AppendMenuA( hMenuSpec256, MF_SEPARATOR, 0, NULL );
+
+  /* 36 Classic Remasters Submenu */
+  for( i = 0; i < spec256_get_classic_count(); i++ ) {
+    const char *title = spec256_get_classic_title( i );
+    if( spec256_is_classic_available( i ) ) {
+      AppendMenuA( hSubSpec256Classics, MF_STRING, IDM_FXR_SPEC256_CLASSIC_BASE + i, title );
+    } else {
+      char disabled_title[128];
+      snprintf( disabled_title, sizeof( disabled_title ), "%s (.ezx pack)", title );
+      AppendMenuA( hSubSpec256Classics, MF_STRING | MF_GRAYED, 0, disabled_title );
+    }
+  }
+  AppendMenuA( hMenuSpec256, MF_POPUP, (UINT_PTR)hSubSpec256Classics, "&Spec256 Classics (36 Remasters)..." );
+  AppendMenuA( hMenuSpec256, MF_SEPARATOR, 0, NULL );
+
+  AppendMenuA( hMenuSpec256, MF_STRING, IDM_FXR_SPEC256_NEXT_BG,  "&Next Background Graphic\tAlt+N" );
+  AppendMenuA( hMenuSpec256, MF_STRING, IDM_FXR_SPEC256_PREV_BG,  "&Previous Background Graphic\tAlt+M" );
+  AppendMenuA( hMenuSpec256, MF_SEPARATOR, 0, NULL );
+  AppendMenuA( hMenuSpec256, MF_STRING, IDM_FXR_SPEC256_LOAD_GFX, "Load Custom .&GFX Bitplane File..." );
+  AppendMenuA( hMenuSpec256, MF_STRING, IDM_FXR_SPEC256_LOAD_BG,  "Load Custom .&B00 / .BMP Background..." );
+
+  /* Insert the compact top-level menus before "&Help" so all items + Random Dice fit on 1 row */
   int count = GetMenuItemCount( hBar );
   int insert_pos = ( count > 1 ) ? ( count - 1 ) : count;
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuGames, "&Games" );
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuCheat, "&Cheats" );
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuQuick, "&Setup" );
-  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuVR,    "&VR" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuGames,   "&Games" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuCheat,   "&Cheats" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuQuick,   "&Setup" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuSpec256, "Spec&256" );
+  InsertMenuA( hBar, insert_pos++, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hMenuVR,      "&VR" );
 
   /* Add the 1-Click 3D Emerald Dice Button ("Random") right-aligned at the far right of the top menu bar */
   {
@@ -5231,6 +5295,115 @@ quest_vr_handle_win32_menu( unsigned int cmd_id, void *hWnd_ptr )
   case IDM_FXR_VR_FPS_60:       quest_vr_set_target_fps( 60 ); return 1;
   case IDM_FXR_VR_FPS_72:       quest_vr_set_target_fps( 72 ); return 1;
   case IDM_FXR_VR_FPS_90:       quest_vr_set_target_fps( 90 ); return 1;
+
+  case IDM_FXR_SPEC256_OFF:
+    spec256_set_mode( SPEC256_MODE_OFF );
+    if( g_fxr_hMenuSpec256 ) {
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_OFF,         MF_BYCOMMAND | MF_CHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_ARCADE, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_SMOOTH, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_VGA,    MF_BYCOMMAND | MF_UNCHECKED );
+    }
+    fxr_update_window_title( "Spec256: Off (16-Colour ULA)" );
+    return 1;
+
+  case IDM_FXR_SPEC256_AUTO_ARCADE:
+    spec256_set_mode( SPEC256_MODE_AUTO_ARCADE );
+    if( g_fxr_hMenuSpec256 ) {
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_OFF,         MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_ARCADE, MF_BYCOMMAND | MF_CHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_SMOOTH, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_VGA,    MF_BYCOMMAND | MF_UNCHECKED );
+    }
+    fxr_update_window_title( "Spec256: Live Arcade (256 Colours)" );
+    return 1;
+
+  case IDM_FXR_SPEC256_AUTO_SMOOTH:
+    spec256_set_mode( SPEC256_MODE_AUTO_SMOOTH );
+    if( g_fxr_hMenuSpec256 ) {
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_OFF,         MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_ARCADE, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_SMOOTH, MF_BYCOMMAND | MF_CHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_VGA,    MF_BYCOMMAND | MF_UNCHECKED );
+    }
+    fxr_update_window_title( "Spec256: Live Smooth & Bevel (256 Colours)" );
+    return 1;
+
+  case IDM_FXR_SPEC256_AUTO_VGA:
+    spec256_set_mode( SPEC256_MODE_AUTO_VGA );
+    if( g_fxr_hMenuSpec256 ) {
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_OFF,         MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_ARCADE, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_SMOOTH, MF_BYCOMMAND | MF_UNCHECKED );
+      CheckMenuItem( g_fxr_hMenuSpec256, IDM_FXR_SPEC256_AUTO_VGA,    MF_BYCOMMAND | MF_CHECKED );
+    }
+    fxr_update_window_title( "Spec256: Retro VGA (256 Colours)" );
+    return 1;
+
+  case IDM_FXR_SPEC256_NEXT_BG:
+    spec256_next_bg();
+    return 1;
+
+  case IDM_FXR_SPEC256_PREV_BG:
+    spec256_prev_bg();
+    return 1;
+
+  case IDM_FXR_SPEC256_LOAD_GFX: {
+    char file_buf[MAX_PATH] = "";
+    OPENFILENAMEA ofn;
+    memset( &ofn, 0, sizeof( ofn ) );
+    ofn.lStructSize = sizeof( ofn );
+    ofn.hwndOwner = (HWND)hWnd_ptr;
+    ofn.lpstrFilter = "Spec256 GFX Bitplanes (*.gfx)\0*.gfx\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = file_buf;
+    ofn.nMaxFile = sizeof( file_buf );
+    ofn.lpstrTitle = "Select Spec256 GFX Bitplane File";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if( GetOpenFileNameA( &ofn ) && file_buf[0] ) {
+      if( spec256_load_gfx_file( file_buf ) ) {
+        spec256_set_mode( SPEC256_MODE_HANDCRAFTED );
+        fxr_update_window_title( "Spec256 GFX Loaded" );
+      }
+    }
+    return 1;
+  }
+
+  case IDM_FXR_SPEC256_LOAD_BG: {
+    char file_buf[MAX_PATH] = "";
+    OPENFILENAMEA ofn;
+    memset( &ofn, 0, sizeof( ofn ) );
+    ofn.lStructSize = sizeof( ofn );
+    ofn.hwndOwner = (HWND)hWnd_ptr;
+    ofn.lpstrFilter = "Spec256 Backgrounds (*.b00;*.bmp;*.raw)\0*.b00;*.b01;*.b02;*.b03;*.bmp;*.raw\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = file_buf;
+    ofn.nMaxFile = sizeof( file_buf );
+    ofn.lpstrTitle = "Select Spec256 Background Graphic";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if( GetOpenFileNameA( &ofn ) && file_buf[0] ) {
+      if( spec256_load_bg_file( file_buf, 0 ) ) {
+        display_refresh_all();
+        fxr_update_window_title( "Spec256 Background Loaded" );
+      }
+    }
+    return 1;
+  }
+
+  default:
+    if( cmd_id >= IDM_FXR_SPEC256_CLASSIC_BASE &&
+        cmd_id < IDM_FXR_SPEC256_CLASSIC_BASE + 100 ) {
+      int c_idx = cmd_id - IDM_FXR_SPEC256_CLASSIC_BASE;
+      char status[256];
+      snprintf( status, sizeof( status ), "Loading Spec256: %s...", spec256_get_classic_title( c_idx ) );
+      fxr_update_window_title( status );
+      if( spec256_load_classic( c_idx ) ) {
+        snprintf( g_fxr_current_game, sizeof( g_fxr_current_game ), "%s", spec256_get_classic_title( c_idx ) );
+        fxr_update_window_title( "Spec256 Remaster Pack" );
+      } else {
+        fxr_update_window_title( "Failed to Load Spec256 Classic" );
+      }
+      return 1;
+    }
+    break;
   }
 #else
   (void)cmd_id;

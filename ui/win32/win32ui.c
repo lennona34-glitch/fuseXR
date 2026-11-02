@@ -42,6 +42,7 @@
 #include "tape.h"
 #include "timer/timer.h"
 #include "ui/quest_vr.h"
+#include "ui/spec256.h"
 #include "ui/ui.h"
 #include "ui/display_timing.h"
 #include "ui/win32/menu_data.h"
@@ -200,6 +201,14 @@ fuse_window_proc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
       }
       if( wParam == VK_F10 ) {
         quest_vr_toggle_fullscreen( hWnd );
+        return 0;
+      }
+      if( ( wParam == 'N' || wParam == 'n' ) && ( lParam & ( 1 << 29 ) ) ) {
+        spec256_next_bg();
+        return 0;
+      }
+      if( ( wParam == 'M' || wParam == 'm' ) && ( lParam & ( 1 << 29 ) ) ) {
+        spec256_prev_bg();
         return 0;
       }
       break;

@@ -25,6 +25,8 @@
 
 #include "config.h"
 
+#include "ui/spec256.h"
+
 #include <string.h>
 #ifdef HAVE_STRINGS_STRCASECMP
 #include <strings.h>
@@ -572,6 +574,7 @@ writebyte_internal( libspectrum_word address, libspectrum_byte b )
     memory_display_dirty( address, b );
 
     memory[ offset ] = b;
+    if( spec256_is_active() ) spec256_on_writebyte( address, b );
   } else if( uspeech_available ) {
     /* TODO: check if we can move this check above memory writes.
        uSpeech is not compatible with +2A/+3 all RAM modes */

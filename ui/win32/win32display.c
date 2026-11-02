@@ -32,6 +32,7 @@
 #include "machine.h"
 #include "settings.h"
 #include "ui/quest_vr.h"
+#include "ui/spec256.h"
 #include "ui/ui.h"
 #include "ui/uidisplay.h"
 #include "ui/scaler/scaler.h"
@@ -389,7 +390,10 @@ register_scalers( int force_scaler )
 void
 uidisplay_frame_end( void )
 {
-  if( scaler_flags & SCALER_FLAGS_FULL_REFRESH ) {
+  if( spec256_is_active() ) {
+    spec256_render_frame_to_rgb( (libspectrum_dword*)rgb_image, rgb_pitch, DISPLAY_SCREEN_WIDTH, DISPLAY_SCREEN_HEIGHT );
+    win32display_add_dirty_area( 0, 0, DISPLAY_SCREEN_WIDTH, DISPLAY_SCREEN_HEIGHT );
+  } else if( scaler_flags & SCALER_FLAGS_FULL_REFRESH ) {
     uidisplay_area( 0, 0, image_width, image_height );
   }
 

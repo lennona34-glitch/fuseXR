@@ -21,7 +21,7 @@ machine.c memory_pages.c mempool.c menu.c movie.c module.c periph.c
 phantom_typist.c profile.c psg.c rectangle.c rzx.c rzx_recording.c
 screenshot.c settings.c slt.c snapshot.c sound.c spectrum.c
 svg.c tape.c tape_block.c tape_record.c tape_traps.c unittests/tape.c
-unittests/helpers.c ui.c ui/quest_vr.c uidisplay.c uimedia.c utils.c
+unittests/helpers.c ui.c ui/quest_vr.c ui/spec256.c uidisplay.c uimedia.c utils.c
 compat/unix/dir.c compat/unix/file.c compat/win32/osname.c compat/win32/paths.c
 compat/win32/timer.c compat/win32/monotonic.c compat/win32/socket.c
 debugger/breakpoint.c debugger/command.c debugger/commandl.c debugger/commandy.c
