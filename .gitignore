@@ -40,5 +40,6 @@ tags
 /games/_uploaded_*
 /games/_fxr_scaler.cfg
 /games/downloads/
+/games/spec256/
 /quest-spectrum-xr/node_modules/
 /quest-spectrum-xr/dist/

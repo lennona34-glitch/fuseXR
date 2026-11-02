@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "ui/ui.h"
 #include "utils.h"
+#include "fuse.h"
 
 /* Dimensions */
 #define SPEC256_BG_W 320
@@ -216,6 +217,22 @@ int spec256_is_classic_available( int idx )
            spec256_classics[idx].gfx_file[0] != '\0' );
 }
 
+/* Helper to find application executable directory */
+static void get_app_dir( char *out, size_t cap )
+{
+  char exe_path[512];
+  if( GetModuleFileNameA( NULL, exe_path, sizeof( exe_path ) ) ) {
+    char *slash = strrchr( exe_path, '\\' );
+    if( !slash ) slash = strrchr( exe_path, '/' );
+    if( slash ) {
+      *slash = '\0';
+      snprintf( out, cap, "%s", exe_path );
+      return;
+    }
+  }
+  snprintf( out, cap, "." );
+}
+
 /* Helper to download a single file with WinINet */
 static int download_file_wininet( const char *url, const char *dest_path )
 {
@@ -228,6 +245,15 @@ static int download_file_wininet( const char *url, const char *dest_path )
     return 0;
   }
 
+  DWORD status = 0, status_len = sizeof( status );
+  if( HttpQueryInfoA( hUrl, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &status, &status_len, NULL ) ) {
+    if( status != 200 ) {
+      InternetCloseHandle( hUrl );
+      InternetCloseHandle( hNet );
+      return 0;
+    }
+  }
+
   FILE *f = fopen( dest_path, "wb" );
   if( !f ) {
     InternetCloseHandle( hUrl );
@@ -238,17 +264,23 @@ static int download_file_wininet( const char *url, const char *dest_path )
   char buf[8192];
   DWORD read_bytes = 0;
   int ok = 1;
+  size_t total_written = 0;
   while( InternetReadFile( hUrl, buf, sizeof( buf ), &read_bytes ) && read_bytes > 0 ) {
     if( fwrite( buf, 1, read_bytes, f ) != read_bytes ) {
       ok = 0;
       break;
     }
+    total_written += read_bytes;
   }
 
   fclose( f );
   InternetCloseHandle( hUrl );
   InternetCloseHandle( hNet );
-  return ok;
+  if( !ok || total_written == 0 ) {
+    DeleteFileA( dest_path );
+    return 0;
+  }
+  return 1;
 }
 
 /* URL encoder for folder names with spaces */
@@ -273,10 +305,15 @@ int spec256_load_classic( int idx )
 
   const spec256_classic_entry_t *entry = &spec256_classics[idx];
 
-  char local_dir[512];
-  snprintf( local_dir, sizeof( local_dir ), "games/spec256/%s", entry->folder );
-  CreateDirectoryA( "games", NULL );
-  CreateDirectoryA( "games/spec256", NULL );
+  char app_dir[512];
+  get_app_dir( app_dir, sizeof( app_dir ) );
+
+  char games_dir[512], spec256_dir[512], local_dir[512];
+  snprintf( games_dir, sizeof( games_dir ), "%s/games", app_dir );
+  snprintf( spec256_dir, sizeof( spec256_dir ), "%s/games/spec256", app_dir );
+  snprintf( local_dir, sizeof( local_dir ), "%s/games/spec256/%s", app_dir, entry->folder );
+  CreateDirectoryA( games_dir, NULL );
+  CreateDirectoryA( spec256_dir, NULL );
   CreateDirectoryA( local_dir, NULL );
 
   char sna_path[512], gfx_path[512], bg_path[512];
@@ -318,12 +355,29 @@ int spec256_load_classic( int idx )
     download_file_wininet( url, bg_path );
   }
 
-  /* Reset machine to 48K */
-  machine_select_id( "48" );
+  /* Pause emulation cleanly during machine change & snapshot injection */
+  fuse_emulation_pause();
+
+  /* Select 128K for larger snapshots, 48K for standard */
+  HANDLE hSna = CreateFileA( sna_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL );
+  DWORD sna_size = 0;
+  if( hSna != INVALID_HANDLE_VALUE ) {
+    sna_size = GetFileSize( hSna, NULL );
+    CloseHandle( hSna );
+  }
+
+  if( sna_size > 50000 ) {
+    machine_select_id( "128" );
+  } else {
+    machine_select_id( "48" );
+  }
 
   /* Load snapshot */
   int err = utils_open_file( sna_path, 1, NULL );
-  if( err != 0 ) return 0;
+  if( err != 0 ) {
+    fuse_emulation_unpause();
+    return 0;
+  }
 
   /* Load GFX bitplanes */
   spec256_load_gfx_file( gfx_path );
@@ -339,6 +393,7 @@ int spec256_load_classic( int idx )
   snprintf( g_spec256_current_title, sizeof( g_spec256_current_title ), "%s", entry->title );
 
   display_refresh_all();
+  fuse_emulation_unpause();
   return 1;
 }
 
@@ -347,28 +402,41 @@ void spec256_render_frame_to_rgb( libspectrum_dword *dest_rgb, int dest_pitch, i
 {
   if( g_spec256_mode == SPEC256_MODE_OFF ) return;
 
-  int stride = dest_pitch / 4;
   int border_color = display_lores_border & 0x07;
   libspectrum_dword border_rgb = g_spec256_pal[ 192 + border_color * 8 + 3 ];
 
   int x, y;
 
+  /* Helper macro to get screen scanline pointer aligned with Fuse scalers (+2 scanlines, +1 column) */
+  #define SCANLINE_PTR(ly) ( (libspectrum_dword*)( (unsigned char*)dest_rgb + ( (ly) + 2 ) * dest_pitch ) )
+
+  /* Fill top/bottom padding lines (-2, -1, height, height+1) with border */
+  for( y = -2; y < 0; y++ ) {
+    libspectrum_dword *row = SCANLINE_PTR( y );
+    for( x = 0; x < width + 3; x++ ) row[x] = border_rgb;
+  }
+  for( y = height; y < height + 2; y++ ) {
+    libspectrum_dword *row = SCANLINE_PTR( y );
+    for( x = 0; x < width + 3; x++ ) row[x] = border_rgb;
+  }
+
   /* MODE 1: Official Spec256 Handcrafted Bitplane Mode */
   if( g_spec256_mode == SPEC256_MODE_HANDCRAFTED ) {
-    /* 1. Fill borders */
+    /* 1. Fill borders for screen scanlines 0..height-1 */
     for( y = 0; y < height; y++ ) {
-      libspectrum_dword *row = dest_rgb + y * stride;
+      libspectrum_dword *row = SCANLINE_PTR( y );
+      row[0] = border_rgb; /* left margin column -1 */
       if( y < SPEC_PAPER_Y0 || y >= SPEC_PAPER_Y0 + SPEC_PAPER_H ) {
-        for( x = 0; x < width; x++ ) row[x] = border_rgb;
+        for( x = 1; x <= width + 1; x++ ) row[x] = border_rgb;
       } else {
-        for( x = 0; x < SPEC_PAPER_X0; x++ ) row[x] = border_rgb;
-        for( x = SPEC_PAPER_X0 + SPEC_PAPER_W; x < width; x++ ) row[x] = border_rgb;
+        for( x = 1; x <= SPEC_PAPER_X0; x++ ) row[x] = border_rgb;
+        for( x = SPEC_PAPER_X0 + SPEC_PAPER_W + 1; x <= width + 1; x++ ) row[x] = border_rgb;
       }
     }
 
     /* 2. Render 256x192 Paper Pixels */
     for( y = 0; y < 192; y++ ) {
-      libspectrum_dword *out_row = dest_rgb + ( SPEC_PAPER_Y0 + y ) * stride + SPEC_PAPER_X0;
+      libspectrum_dword *out_row = SCANLINE_PTR( SPEC_PAPER_Y0 + y ) + 1 + SPEC_PAPER_X0;
       int x_char;
       for( x_char = 0; x_char < 32; x_char++ ) {
         uint16_t offs = vxswapb( (uint16_t)( y * 32 + x_char ) );
@@ -399,12 +467,13 @@ void spec256_render_frame_to_rgb( libspectrum_dword *dest_rgb, int dest_pitch, i
   {
     /* Render borders */
     for( y = 0; y < height; y++ ) {
-      libspectrum_dword *row = dest_rgb + y * stride;
+      libspectrum_dword *row = SCANLINE_PTR( y );
+      row[0] = border_rgb; /* left margin column -1 */
       if( y < SPEC_PAPER_Y0 || y >= SPEC_PAPER_Y0 + SPEC_PAPER_H ) {
-        for( x = 0; x < width; x++ ) row[x] = border_rgb;
+        for( x = 1; x <= width + 1; x++ ) row[x] = border_rgb;
       } else {
-        for( x = 0; x < SPEC_PAPER_X0; x++ ) row[x] = border_rgb;
-        for( x = SPEC_PAPER_X0 + SPEC_PAPER_W; x < width; x++ ) row[x] = border_rgb;
+        for( x = 1; x <= SPEC_PAPER_X0; x++ ) row[x] = border_rgb;
+        for( x = SPEC_PAPER_X0 + SPEC_PAPER_W + 1; x <= width + 1; x++ ) row[x] = border_rgb;
       }
     }
 
@@ -434,7 +503,7 @@ void spec256_render_frame_to_rgb( libspectrum_dword *dest_rgb, int dest_pitch, i
     /* Render with 8-shade ramps, edge anti-aliasing & beveling */
     for( y = 0; y < 192; y++ ) {
       cy = y >> 3;
-      libspectrum_dword *out_row = dest_rgb + ( SPEC_PAPER_Y0 + y ) * stride + SPEC_PAPER_X0;
+      libspectrum_dword *out_row = SCANLINE_PTR( SPEC_PAPER_Y0 + y ) + 1 + SPEC_PAPER_X0;
 
       for( x = 0; x < 256; x++ ) {
         cx = x >> 3;
@@ -498,4 +567,5 @@ void spec256_render_frame_to_rgb( libspectrum_dword *dest_rgb, int dest_pitch, i
       }
     }
   }
+  #undef SCANLINE_PTR
 }

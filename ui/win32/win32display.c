@@ -57,7 +57,7 @@ ptrdiff_t win32display_pitch = DISPLAY_SCREEN_WIDTH *
 static unsigned char rgb_image[ 4 * 2 * ( DISPLAY_SCREEN_HEIGHT + 4 ) *
                                         ( DISPLAY_SCREEN_WIDTH  + 3 )   ];
 static const int rgb_pitch = ( DISPLAY_SCREEN_WIDTH + 3 ) * 4;
-static const ptrdiff_t scaled_pitch = MAX_SCALE * DISPLAY_SCREEN_WIDTH * 2;
+static const ptrdiff_t scaled_pitch = MAX_SCALE * DISPLAY_SCREEN_WIDTH * 4;
 
 /* Win32 specific variables */
 static void *win32_pixdata;
@@ -219,13 +219,13 @@ win32display_init( void )
 
   memset( &fuse_BMI, 0, sizeof( fuse_BMI ) );
   fuse_BMI.bmiHeader.biSize = sizeof( fuse_BMI.bmiHeader );
-  fuse_BMI.bmiHeader.biWidth = (size_t)( 0.5 * MAX_SCALE * DISPLAY_SCREEN_WIDTH );
+  fuse_BMI.bmiHeader.biWidth = MAX_SCALE * DISPLAY_SCREEN_WIDTH;
   /* negative to avoid "shep-mode": */
   fuse_BMI.bmiHeader.biHeight = -( MAX_SCALE * DISPLAY_SCREEN_HEIGHT );
   fuse_BMI.bmiHeader.biPlanes = 1;
   fuse_BMI.bmiHeader.biBitCount = 32;
   fuse_BMI.bmiHeader.biCompression = BI_RGB;
-  fuse_BMI.bmiHeader.biSizeImage = 0;
+  fuse_BMI.bmiHeader.biSizeImage = (size_t)( MAX_SCALE * DISPLAY_SCREEN_WIDTH * MAX_SCALE * DISPLAY_SCREEN_HEIGHT * 4 );
   fuse_BMI.bmiHeader.biXPelsPerMeter = 0;
   fuse_BMI.bmiHeader.biYPelsPerMeter = 0;
   fuse_BMI.bmiHeader.biClrUsed = 0;

@@ -3709,6 +3709,8 @@ fxr_load_file_direct( const char *full_path, const char *display_name, const cha
   settings_current.accelerate_loader = 1;
   settings_current.disk_ask_merge = 0;
 
+  fuse_emulation_pause();
+
   if( fmt_hint && ( !strcasecmp( fmt_hint, "tap" ) || !strcasecmp( fmt_hint, "tzx" ) ) ) {
     ui_media_drive_eject_all();
     if( display_name && ( strstr( display_name, "128" ) || strstr( display_name, "+2" ) || strstr( display_name, "+3" ) ) ) {
@@ -3729,12 +3731,14 @@ fxr_load_file_direct( const char *full_path, const char *display_name, const cha
   g_fxr_suppress_ui_error = 0;
 
   if( err != 0 ) {
+    fuse_emulation_unpause();
     if( is_cloud_cache ) DeleteFileA( full_path );
     return 0;
   }
 
   pokemem_autoload_pokfile();
   display_refresh_all();
+  fuse_emulation_unpause();
 
   snprintf( g_fxr_current_game, sizeof( g_fxr_current_game ), "%s",
             ( display_name && display_name[0] ) ? display_name : full_path );
